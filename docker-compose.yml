@@ -1,0 +1,118 @@
+services:
+  web:
+    build:
+      context: .
+      dockerfile: docker/web.Dockerfile
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost/api}
+      NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:3000}
+      NEXT_PUBLIC_SENTRY_DSN: ${NEXT_PUBLIC_SENTRY_DSN:-}
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: ${PORT:-4000}
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      TEMP_DIR: ${TEMP_DIR:-/var/tmp/video-downloader}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      MAX_VIDEO_SIZE_MB: ${MAX_VIDEO_SIZE_MB:-2048}
+      MAX_PROCESSING_TIME_SECONDS: ${MAX_PROCESSING_TIME_SECONDS:-900}
+      MAX_CONCURRENT_JOBS_PER_IP: ${MAX_CONCURRENT_JOBS_PER_IP:-2}
+      RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-10}
+      RATE_LIMIT_DOWNLOAD_PER_MINUTE: ${RATE_LIMIT_DOWNLOAD_PER_MINUTE:-5}
+      RATE_LIMIT_POLLING_PER_MINUTE: ${RATE_LIMIT_POLLING_PER_MINUTE:-120}
+      JOB_RETRY_ATTEMPTS: ${JOB_RETRY_ATTEMPTS:-3}
+      JOB_RETRY_BACKOFF_MS: ${JOB_RETRY_BACKOFF_MS:-15000}
+      TEMP_FILE_TTL_MINUTES: ${TEMP_FILE_TTL_MINUTES:-30}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+    volumes:
+      - temp_processing:${TEMP_DIR:-/var/tmp/video-downloader}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      dockerfile: docker/worker.Dockerfile
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-2}
+      TEMP_DIR: ${TEMP_DIR:-/var/tmp/video-downloader}
+      MAX_VIDEO_SIZE_MB: ${MAX_VIDEO_SIZE_MB:-2048}
+      MAX_PROCESSING_TIME_SECONDS: ${MAX_PROCESSING_TIME_SECONDS:-900}
+      TEMP_FILE_TTL_MINUTES: ${TEMP_FILE_TTL_MINUTES:-30}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      METRICS_PORT: ${METRICS_PORT:-9091}
+    # No host port mapping here on purpose — a fixed host port would
+    # conflict across replicas under `docker compose up --scale worker=3`.
+    # Reachable within the Docker network at worker:9091 (Prometheus
+    # typically runs as its own container on the same network). See
+    # apps/worker README for the caveat on scraping multiple replicas.
+    volumes:
+      - temp_processing:${TEMP_DIR:-/var/tmp/video-downloader}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    restart: unless-stopped
+    # Scale independently of the API, e.g.:
+    # docker compose up --scale worker=3
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-video_downloader}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-video_downloader}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-video_downloader}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:1.27-alpine
+    volumes:
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "80:80"
+    depends_on:
+      web:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+  temp_processing:

@@ -1,0 +1,60 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum JobStatus {
+  queued
+  processing
+  completed
+  failed
+  cancelled
+}
+
+/// Metadata only. The actual video/audio bytes are never written here —
+/// they are streamed through apps/worker and deleted after delivery
+/// (see Section 9/16 of the spec). expiresAt drives the cleanup job
+/// that removes stale rows (Phase 4).
+model DownloadJob {
+  id          String    @id @default(cuid())
+
+  sourceUrl   String
+  status      JobStatus @default(queued)
+  format      String // FormatOption.id, e.g. "1080-mp4"
+  progress    Int       @default(0) // 0-100
+
+  title       String?
+  duration    Int? // seconds
+  fileSize    Int? // bytes, once known
+
+  error       String?
+
+  createdAt   DateTime  @default(now())
+  startedAt   DateTime?
+  completedAt DateTime?
+  expiresAt   DateTime? // when the temp file / row should be purged
+
+  // Optional anonymous session id for per-session rate limiting (Section 17).
+  // Nullable so the model doesn't force auth/session infra in Phase 2.
+  sessionId   String?
+
+  // Requesting IP at job-creation time, used for concurrent-job limits
+  // and abuse tracking (Section 14). Nullable to tolerate rows created
+  // before this column existed.
+  ipAddress   String?
+
+  // The API request id that created this job (Phase 12 observability) —
+  // lets an operator trace a browser request through api logs, the
+  // BullMQ job, and worker logs as one correlated thread.
+  requestId   String?
+
+  @@index([status])
+  @@index([expiresAt])
+  @@index([sessionId])
+  @@index([ipAddress, status])
+  @@map("download_jobs")
+}

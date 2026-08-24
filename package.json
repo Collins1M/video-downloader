@@ -1,0 +1,24 @@
+{
+  "name": "video-downloader",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:web": "npm run dev --workspace=apps/web",
+    "dev:api": "npm run start:dev --workspace=apps/api",
+    "dev:worker": "npm run start:dev --workspace=apps/worker",
+    "db:generate": "npm run prisma:generate --workspace=packages/database",
+    "db:migrate": "npm run prisma:migrate --workspace=packages/database",
+    "build:packages": "npm run build --workspace=packages/types && npm run build --workspace=packages/config && npm run build --workspace=packages/security && npm run build --workspace=packages/database && npm run build --workspace=packages/media-extractor",
+    "build": "npm run build:packages && npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspace=apps/api && npm run typecheck --workspace=apps/worker && npm run typecheck --workspace=apps/web",
+    "test": "npm run test --workspace=packages/security && npm run test --workspace=packages/media-extractor && npm run test --workspace=apps/worker && npm run test --workspace=apps/web && npm run test --workspace=apps/api",
+    "docker:up": "docker compose up --build",
+    "docker:down": "docker compose down"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0"
+  }
+}
