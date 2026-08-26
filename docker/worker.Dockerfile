@@ -11,7 +11,7 @@ COPY packages/config/package.json packages/config/package.json
 COPY packages/security/package.json packages/security/package.json
 COPY packages/database/package.json packages/database/package.json
 COPY packages/media-extractor/package.json packages/media-extractor/package.json
-RUN npm ci
+RUN npm ci --audit=false
 
 # ---- builder: compile everything needed for apps/worker ----
 FROM deps AS builder
@@ -32,7 +32,9 @@ WORKDIR /app
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ffmpeg python3 python3-pip curl ca-certificates \
     && pip3 install --break-system-packages --no-cache-dir yt-dlp \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && addgroup --gid 1001 --system nodejs \
+    && adduser --system --uid 1001 nodejs
 
 ENV NODE_ENV=production
 
@@ -49,7 +51,7 @@ COPY packages/config/package.json packages/config/package.json
 COPY packages/security/package.json packages/security/package.json
 COPY packages/database/package.json packages/database/package.json
 COPY packages/media-extractor/package.json packages/media-extractor/package.json
-RUN npm ci --omit=dev
+RUN npm ci --omit=dev --audit=false
 
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma/client ./node_modules/@prisma/client
@@ -64,12 +66,15 @@ COPY --from=builder /app/apps/worker/dist ./apps/worker/dist
 # Temp processing files (Section 9) — mounted as a shared volume with the
 # api container in docker-compose.yml so the api process can stream a
 # completed job's output file back to the browser.
-RUN mkdir -p /var/tmp/video-downloader
+RUN mkdir -p /var/tmp/video-downloader && chown nodejs:nodejs /var/tmp/video-downloader
 
 WORKDIR /app/apps/worker
+
+USER nodejs
+
+EXPOSE 9091
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD node -e "const fs=require('fs');const t=parseInt(fs.readFileSync('/tmp/worker-heartbeat','utf8'),10);process.exit((Date.now()-t)<45000?0:1)" || exit 1
 
 CMD ["node", "dist/main.js"]
-EXPOSE 9091

@@ -11,7 +11,7 @@ COPY packages/config/package.json packages/config/package.json
 COPY packages/security/package.json packages/security/package.json
 COPY packages/database/package.json packages/database/package.json
 COPY packages/media-extractor/package.json packages/media-extractor/package.json
-RUN npm ci
+RUN npm ci --audit=false
 
 # ---- builder ----
 FROM deps AS builder
@@ -32,7 +32,9 @@ WORKDIR /app
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends curl ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && addgroup --gid 1001 --system nodejs \
+    && adduser --system --uid 1001 nodejs
 
 ENV NODE_ENV=production
 
@@ -47,7 +49,7 @@ COPY packages/config/package.json packages/config/package.json
 COPY packages/security/package.json packages/security/package.json
 COPY packages/database/package.json packages/database/package.json
 COPY packages/media-extractor/package.json packages/media-extractor/package.json
-RUN npm ci --omit=dev
+RUN npm ci --omit=dev --audit=false
 
 COPY --from=builder /app/apps/web/.next ./apps/web/.next
 COPY --from=builder /app/apps/web/public ./apps/web/public
@@ -55,8 +57,11 @@ COPY --from=builder /app/apps/web/next.config.js ./apps/web/next.config.js
 
 WORKDIR /app/apps/web
 
+USER nodejs
+
+EXPOSE 3000
+
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
   CMD curl -f http://localhost:3000/ || exit 1
 
-EXPOSE 3000
 CMD ["npm", "run", "start"]

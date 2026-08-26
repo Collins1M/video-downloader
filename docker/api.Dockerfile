@@ -11,7 +11,7 @@ COPY packages/config/package.json packages/config/package.json
 COPY packages/security/package.json packages/security/package.json
 COPY packages/database/package.json packages/database/package.json
 COPY packages/media-extractor/package.json packages/media-extractor/package.json
-RUN npm ci
+RUN npm ci --audit=false
 
 # ---- builder: compile everything needed for apps/api ----
 FROM deps AS builder
@@ -33,7 +33,9 @@ WORKDIR /app
 RUN apt-get update \
     && apt-get install -y --no-install-recommends python3 python3-pip curl ca-certificates \
     && pip3 install --break-system-packages --no-cache-dir yt-dlp \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && addgroup --gid 1001 --system nodejs \
+    && adduser --system --uid 1001 nodejs
 
 ENV NODE_ENV=production
 
@@ -55,7 +57,7 @@ COPY packages/config/package.json packages/config/package.json
 COPY packages/security/package.json packages/security/package.json
 COPY packages/database/package.json packages/database/package.json
 COPY packages/media-extractor/package.json packages/media-extractor/package.json
-RUN npm ci --omit=dev
+RUN npm ci --omit=dev --audit=false
 
 # The prod-only install above never ran `prisma generate`, so the
 # generated client is missing from node_modules — carry it over from
@@ -75,8 +77,11 @@ COPY --from=builder /app/apps/api/dist ./apps/api/dist
 
 WORKDIR /app/apps/api
 
+USER nodejs
+
+EXPOSE 4000
+
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD curl -f http://localhost:4000/health || exit 1
 
-EXPOSE 4000
 CMD ["node", "dist/main.js"]
