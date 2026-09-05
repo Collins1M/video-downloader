@@ -7,6 +7,7 @@ export interface WorkerConfig {
   tempFileTtlMinutes: number;
   tempDir: string;
   metricsPort: number;
+  analyzeTimeoutMs: number;
 }
 
 export function loadWorkerConfig(): WorkerConfig {
@@ -29,5 +30,6 @@ export function loadWorkerConfig(): WorkerConfig {
     tempFileTtlMinutes: Number(process.env.TEMP_FILE_TTL_MINUTES ?? 30),
     tempDir: process.env.TEMP_DIR ?? "/var/tmp/video-downloader",
     metricsPort: Number(process.env.METRICS_PORT ?? 9091),
+    analyzeTimeoutMs: Number(process.env.ANALYZE_TIMEOUT_MS ?? 60_000),
   };
 }

@@ -22,7 +22,7 @@ export class JobExistsGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<Request>();
-    const id = request.params.id;
+    const id = request.params.id as string;
 
     const job = await this.prisma.downloadJob.findUnique({ where: { id }, select: { id: true } });
     if (!job) {

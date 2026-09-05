@@ -1,165 +1,63 @@
-# Video Downloader
+# Video Downloader — Backend
 
-A media-processing gateway: paste a supported video URL, choose a format,
-download directly to your device. No permanent storage of user videos.
-
-Only supports content the user owns, is authorized to download, or that the
-source makes available for downloading. No DRM bypass, paywall bypass, or
-access-control circumvention.
+This is the core engine of the Video Downloader project. It handles video analysis, processing queues, and media extraction.
 
 ## Project structure
 
 ```
-video-downloader/
+video-downloader-backend/
 ├── apps/
-│   ├── web/       Next.js frontend
 │   ├── api/       NestJS REST API + BullMQ producer
 │   └── worker/    BullMQ consumer, FFmpeg processing
 ├── packages/
-│   ├── types/            Shared TS contracts (VideoInfo, FormatOption, JobStatus, queue payloads...)
-│   ├── config/            Shared env var schema
-│   ├── security/          SSRF-hardened URL validator + path-traversal-safe temp paths (shared by api and worker)
-│   ├── media-extractor/   yt-dlp wrapper: extraction, format curation, format resolution
-│   └── database/          Prisma schema + generated client, shared by api and worker
-├── docker/        Dockerfiles + nginx.conf
-├── docs/          API reference, deployment guide
+│   ├── types/            Shared TS contracts
+│   ├── config/           Shared env var schema
+│   ├── security/         SSRF-hardened URL validator
+│   ├── media-extractor/  yt-dlp wrapper
+│   └── database/         Prisma schema + generated client
+├── docker/        Dockerfiles
 ├── docker-compose.yml
 └── .env.example
 ```
 
-## Status
+## Getting Started
 
-All 8 build phases are complete — this is a working, self-hosted video
-downloader, not a scaffold. See "What actually works right now" below,
-and each `apps/*/README.md` for what's genuinely implemented vs. known
-simplifications.
+### 1. System Dependencies
+Ensure you have `ffmpeg` and `yt-dlp` installed on your system if running locally.
 
-## Roadmap
-
-- [x] Phase 1 — Scaffold (monorepo, Docker Compose, .env.example)
-- [x] Phase 2 — Data layer (Prisma schema, migrations)
-- [x] Phase 3 — Backend API core (analyze/download/job endpoints)
-- [x] Phase 4 — Security layer (SSRF protection, rate limiting)
-- [x] Phase 5 — Job queue (Redis + BullMQ)
-- [x] Phase 6 — Media processing (yt-dlp extraction, FFmpeg service, streaming pipeline, cleanup)
-- [x] Phase 7 — Frontend (hero, format selection, download UI)
-- [x] Phase 8 — Admin dashboard + SEO + docs
-- [x] Phase 9 — Reproducibility & CI (lockfile, multi-stage Docker builds, health checks, GitHub Actions)
-- [x] Phase 10 — Automated testing (unit, integration, component, e2e)
-- [x] Phase 11 — Reliability (job retry/backoff, anonymous session cookie, graceful degradation)
-- [x] Phase 12 — Observability (structured logging, request correlation, optional Sentry, Prometheus metrics)
-- [x] Phase 13 — Security hardening (helmet, per-endpoint rate-limit tiers, CSP)
-- [x] Phase 14 — Live progress via SSE, legal pages, accessibility audit, OpenAPI/Swagger
-- [ ] Phase 15 — Feature expansion (playlist/batch downloads, additional audio formats)
-
-## What actually works right now
-
-With `docker compose up` (or the manual steps below), the full flow
-works end to end through the browser: paste a public video URL, analyze
-it, pick a format, watch real progress, and get a real file download —
-see `apps/web/README.md` for the design approach and `apps/web` for the
-UI itself. An admin dashboard at `/admin` (Basic Auth, see
-`.env.example`) shows live request/bandwidth/error stats pulled straight
-from Postgres and BullMQ.
-
-This only works on publicly accessible, non-DRM sources — it wraps
-[yt-dlp](https://github.com/yt-dlp/yt-dlp) rather than implementing any
-site-specific extraction itself. See `apps/worker/README.md` for what
-that does and doesn't cover.
-
-## CI
-
-`.github/workflows/ci.yml` runs on every push/PR to `main`:
-
-- **typecheck**: `npm ci` (against the committed lockfile) → `prisma generate` → build shared packages → typecheck `api`/`worker`/`web` → lint `web`
-- **docker-build**: builds all three multi-stage Dockerfiles in a matrix, with real internet access — this is what actually validates the `prisma generate` binary download, `yt-dlp`/`ffmpeg` installs, and `next build`'s Google Fonts fetch, none of which this sandbox's network allowlist could verify directly. See the honesty notes in `apps/web/README.md` and earlier phase summaries for what was verified by other means (typecheck, hand-written Prisma stubs, manual logic tests) instead.
-
-No automated tests exist yet — that's Phase 10.
-
-## Testing
-
-97 tests across the monorepo — see each `apps/*/README.md` for specifics.
-Two test runners, by design: **Vitest** for `packages/*`, `apps/worker`,
-`apps/web` (no decorators involved); **Jest** for `apps/api` specifically,
-since NestJS's dependency injection relies on TypeScript's
-`emitDecoratorMetadata`, which Vitest's esbuild-based transform doesn't
-reproduce correctly — Jest's `ts-jest` uses the real TypeScript compiler
-and gets this right.
-
-```bash
-npm test               # everything runnable without real Postgres/Redis
-npm run test --workspace=apps/api   # api's guard unit tests + full e2e suite (needs real Postgres/Redis)
-npm run e2e --workspace=apps/web    # Playwright, needs `npx playwright install` first
-```
-
-**What's verified where, honestly:** `packages/security`,
-`packages/media-extractor`, `apps/worker`, and `apps/web`'s tests are
-fully hermetic (mocked external boundaries) and were actually run to
-confirm they pass — not just written. `apps/api`'s integration/e2e tests
-(`*.e2e-spec.ts`) need a real generated Prisma client, which needs
-network access to Prisma's engine binary CDN; this repo's dev sandbox
-couldn't reach it (the same recurring constraint noted in every phase's
-Docker/build verification). Those tests were confirmed to compile and
-run correctly up to the point of an actual database query — every
-failure traced to that one known boundary, never to routing, DI, or
-type errors — and will run for real in CI (`.github/workflows/ci.yml`'s
-`test` job, with real Postgres/Redis service containers). Playwright's
-e2e test mocks the API entirely via route interception, so it only needs
-the frontend running — but this sandbox has no network access to
-Playwright's browser-binary CDN either, so it's written and typechecked
-but not run here.
-
-One real bug this phase caught: the SSRF validator (`packages/security`)
-was incorrectly rejecting valid public IPv6 URLs due to a bracket-handling
-mismatch between WHATWG `URL.hostname` and `ipaddr.js` — found and fixed
-via the test suite, now regression-tested.
-
-## Docs
-
-- [`docs/API.md`](docs/API.md) — full endpoint reference, public + admin
-- [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) — Ubuntu VPS + Docker Compose production setup, TLS, scaling workers
-
-## Local development
-
-Requires `yt-dlp` and `ffmpeg` on `PATH` in addition to Node — see
-`apps/api/README.md` and `apps/worker/README.md` for what each uses them
-for.
-
+### 2. Setup
 ```bash
 cp .env.example .env
-# edit .env with local values
-
-npm ci   # not `npm install` — this repo commits package-lock.json for reproducible installs
-
-# apply the DownloadJob schema to your database
+npm install
+npm run build:packages
 npm run db:generate
 npm run db:migrate
-
-# compile shared packages (types/config/security/database/media-extractor) — required before dev/build
-npm run build:packages
-
-npm run dev:api     # http://localhost:4000
-npm run dev:worker
-npm run dev:web     # http://localhost:3000
 ```
 
-## Running with Docker
-
+### 3. Run (Local)
+Run in separate terminals:
 ```bash
-cp .env.example .env
+npm run dev:api     # http://localhost:4000
+npm run dev:worker
+```
+
+### 4. Run in WSL (Non-Docker)
+For a lightweight setup without Docker, see [WSL_DEVELOPMENT.md](file:///D:/Local Disk/Angular/video-downloader-backend/WSL_DEVELOPMENT.md).
+
+### 5. Redis for Windows
+If you are running directly on Windows (not WSL) and don't want to use Docker:
+- **Memurai**: A Redis-compatible datastore for Windows (Recommended).
+- **Redis on WSL**: Install Redis in WSL and connect to it from Windows.
+- **Managed Redis**: Use a free tier from Redis Labs or Upstash.
+
+### 6. Run with Docker
+```bash
 docker compose up --build
 ```
 
-The app will be available behind nginx at `http://localhost`.
+## Running the Full Stack
+This backend provides the API for:
+1. **Frontend**: Located in `video-downloader-frontend`.
+2. **Admin**: Located in `video-downloader-admin`.
 
-To scale processing workers independently of the API:
-
-```bash
-docker compose up --scale worker=3
-```
-
-## Responsible use
-
-This service is intended for downloading content that you own, have
-permission to download, or that is made available for downloading by its
-source. Respect copyright, platform terms, and applicable laws.
+Ensure the `NEXT_PUBLIC_API_URL` in those projects points to this backend's API (default `http://localhost:4000`).

@@ -4,7 +4,7 @@
  * access to Prisma's engine binary CDN means `prisma generate` fails
  * here (see repo READMEs for the recurring caveat), so there is no
  * working PrismaClient to connect with. These run in CI
- * (.github/workflows/ci.yml's `test` job), which has full internet
+ * (.github/workflows/lamine.yaml's `test` job), which has full internet
  * access and real Postgres/Redis service containers.
  *
  * MediaAnalyzer is overridden with a stub so these tests don't depend

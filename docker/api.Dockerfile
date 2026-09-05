@@ -47,7 +47,7 @@ ENV NODE_ENV=production
 # a build that fails in CI. Trade-off: this image's node_modules
 # includes apps/web's and apps/worker's production dependencies too,
 # which it never uses. Follow-up: verify the leaner subset works once
-# the docker-build CI job (.github/workflows/ci.yml) has run for real.
+# the docker-build CI job (.github/workflows/lamine.yaml) has run for real.
 COPY package.json package-lock.json ./
 COPY apps/api/package.json apps/api/package.json
 COPY apps/worker/package.json apps/worker/package.json

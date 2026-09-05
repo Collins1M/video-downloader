@@ -1,4 +1,4 @@
-import { promises as dns } from "node:dns";
+import { promises as dns, LookupAddress } from "node:dns";
 import * as ipaddr from "ipaddr.js";
 
 export class UnsafeUrlError extends Error {
@@ -105,7 +105,7 @@ async function resolveHostname(hostname: string): Promise<string[]> {
 
   try {
     const records = await dns.lookup(hostname, { all: true, verbatim: false });
-    return records.map((r) => r.address);
+    return (records as LookupAddress[]).map((r: LookupAddress) => r.address);
   } catch {
     throw new UnsafeUrlError();
   }

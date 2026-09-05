@@ -19,9 +19,9 @@ import {
 export class YtDlpMediaAnalyzer implements MediaAnalyzer {
   private readonly logger = new Logger("YtDlpMediaAnalyzer");
 
-  async analyze(url: string): Promise<AnalyzeResponse> {
+  async analyze(url: string, timeoutMs?: number): Promise<AnalyzeResponse> {
     try {
-      const { response } = await analyzeUrl(url);
+      const { response } = await analyzeUrl(url, { timeoutMs });
       return response;
     } catch (err) {
       // Log the real detail server-side; the client only ever gets the

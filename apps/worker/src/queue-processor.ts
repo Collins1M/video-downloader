@@ -27,7 +27,7 @@ const config = loadWorkerConfig();
 // Budget the overall MAX_PROCESSING_TIME_SECONDS across extraction and
 // each fetch step, leaving room for the ffmpeg step (which has its own
 // natural bound via ffmpeg simply finishing or erroring).
-const EXTRACT_TIMEOUT_MS = Math.min(30_000, config.maxProcessingTimeSeconds * 1000 * 0.2);
+const EXTRACT_TIMEOUT_MS = config.analyzeTimeoutMs;
 const FETCH_TIMEOUT_MS = config.maxProcessingTimeSeconds * 1000 * 0.6;
 
 export async function processVideoJob(job: Job<VideoProcessingJobData>): Promise<void> {

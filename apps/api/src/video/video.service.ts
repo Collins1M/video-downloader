@@ -41,7 +41,9 @@ export class VideoService {
     // targets, and hostnames that resolve to them, before anything ever
     // touches the URL.
     await this.urlValidator.validate(url);
-    return this.mediaAnalyzer.analyze(url);
+
+    const timeoutMs = Number(this.config.get("ANALYZE_TIMEOUT_MS") ?? 60_000);
+    return this.mediaAnalyzer.analyze(url, timeoutMs);
   }
 
   async createDownload(

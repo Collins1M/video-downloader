@@ -1,0 +1,238 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  typecheck:
+    name: Typecheck & lint
+    runs-on: ubuntu-latest
+
+    env:
+      # Only needed because the Prisma schema uses env("DATABASE_URL")
+      # during `prisma generate`.
+      # prisma generate does NOT connect to the database.
+      DATABASE_URL: postgresql://dummy:dummy@localhost:5432/dummy
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npm run db:generate
+
+      - name: Build shared packages
+        run: npm run build:packages
+
+      - name: Typecheck
+        run: npm run typecheck
+
+  test:
+    name: Test suite
+    runs-on: ubuntu-latest
+    needs: typecheck
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+
+        env:
+          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
+
+        ports:
+          - "5432:5432"
+
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+
+        ports:
+          - "6379:6379"
+
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME }}
+      ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+      TEMP_DIR: /tmp/video-downloader-test
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npm run db:generate
+
+      - name: Apply Prisma migrations
+        run: |
+          npx prisma migrate deploy \
+            --schema=packages/database/prisma/schema.prisma
+
+      - name: Build shared packages
+        run: npm run build:packages
+
+      - name: Create temp directory
+        run: mkdir -p "$TEMP_DIR"
+
+      - name: Run test suites
+        run: npm test
+
+  docker-build:
+    name: Docker build (${{ matrix.service }})
+    runs-on: ubuntu-latest
+
+    needs:
+      - typecheck
+      - test
+
+    strategy:
+      matrix:
+        service:
+          - api
+          - worker
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Build ${{ matrix.service }} image
+        run: |
+          docker build \
+            -f docker/${{ matrix.service }}.Dockerfile \
+            -t video-downloader-${{ matrix.service }}:ci \
+            .
+
+  deploy:
+    name: Deploy to VPS
+    runs-on: ubuntu-latest
+
+    needs:
+      - typecheck
+      - test
+      - docker-build
+
+    # Deploy ONLY when code is pushed directly to main.
+    # Pull requests run CI but never deploy.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@v1.2.2
+
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SERVER_USER }}
+          password: ${{ secrets.SERVER_PASSWORD }}
+
+          script: |
+            set -e
+
+            echo "======================================"
+            echo "Starting deployment"
+            echo "======================================"
+
+            cd /root/video-downloader
+
+            echo "Current directory:"
+            pwd
+
+            echo "--------------------------------------"
+            echo "Updating repository"
+            echo "--------------------------------------"
+
+            git fetch origin main
+            git reset --hard origin/main
+
+            echo "Latest commit:"
+            git log -1 --oneline
+
+            echo "--------------------------------------"
+            echo "Building Docker images"
+            echo "--------------------------------------"
+
+            docker compose build
+
+            echo "--------------------------------------"
+            echo "Starting PostgreSQL and Redis"
+            echo "--------------------------------------"
+
+            docker compose up -d postgres redis
+
+            echo "--------------------------------------"
+            echo "Waiting for PostgreSQL"
+            echo "--------------------------------------"
+
+            until docker compose exec -T postgres \
+              pg_isready \
+              -U "${POSTGRES_USER:-video_downloader}" \
+              -d "${POSTGRES_DB:-video_downloader}"
+            do
+              echo "PostgreSQL is not ready yet..."
+              sleep 2
+            done
+
+            echo "PostgreSQL is ready."
+
+            echo "--------------------------------------"
+            echo "Running Prisma migrations"
+            echo "--------------------------------------"
+
+            docker compose run --rm api \
+              npx prisma migrate deploy \
+              --schema=/app/packages/database/prisma/schema.prisma
+
+            echo "Prisma migrations completed."
+
+            echo "--------------------------------------"
+            echo "Starting API and Worker"
+            echo "--------------------------------------"
+
+            docker compose up -d api worker
+
+            echo "--------------------------------------"
+            echo "Cleaning unused Docker images"
+            echo "--------------------------------------"
+
+            docker image prune -f
+
+            echo "--------------------------------------"
+            echo "Container status"
+            echo "--------------------------------------"
+
+            docker compose ps
+
+            echo "--------------------------------------"
+            echo "Deployment completed successfully"
+            echo "--------------------------------------"

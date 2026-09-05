@@ -1,5 +1,5 @@
 import { NestFactory } from "@nestjs/core";
-import { ValidationPipe } from "@nestjs/common";
+import { RequestMethod, ValidationPipe } from "@nestjs/common";
 import type { NestExpressApplication } from "@nestjs/platform-express";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { Logger } from "nestjs-pino";
@@ -38,7 +38,14 @@ async function bootstrap() {
     }),
   );
 
-  app.setGlobalPrefix("api", { exclude: ["health", "metrics", "docs", "docs/json"] });
+  app.setGlobalPrefix("api", {
+    exclude: [
+      { path: "health", method: RequestMethod.GET },
+      { path: "metrics", method: RequestMethod.GET },
+      { path: "api-docs", method: RequestMethod.GET },
+      { path: "api-docs/json", method: RequestMethod.GET },
+    ],
+  });
 
   // Must come after setGlobalPrefix — see setupSwagger's docstring for
   // why order matters here.

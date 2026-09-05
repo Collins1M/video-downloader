@@ -6,14 +6,15 @@ export interface AnalyzeOptions {
   timeoutMs?: number;
 }
 
-const DEFAULT_TIMEOUT_MS = 20_000;
+const DEFAULT_TIMEOUT_MS = 60_000;
 
 /** Runs yt-dlp for `url` and returns both the curated AnalyzeResponse and the raw info (the worker needs the raw info again to resolve a chosen format). */
 export async function analyzeUrl(
   url: string,
   options: AnalyzeOptions = {},
 ): Promise<{ response: AnalyzeResponse; raw: YtDlpInfo }> {
-  const info = await fetchYtDlpInfo(url, options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const info = await fetchYtDlpInfo(url, timeoutMs);
 
   const source = safeHostname(info.webpage_url) ?? safeHostname(url) ?? "unknown";
 

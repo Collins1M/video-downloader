@@ -10,6 +10,7 @@
     "sourceMap": true,
     "outDir": "./dist",
     "baseUrl": "./",
+    "rootDir": "src",
     "incremental": true,
     "skipLibCheck": true,
     "strict": true,
@@ -20,12 +21,17 @@
     "noFallthroughCasesInSwitch": false,
     "esModuleInterop": true,
     "resolveJsonModule": true,
+    "moduleResolution": "node",
+    "ignoreDeprecations": "6.0",
+    "types": ["node"],
     "paths": {
-      "@video-downloader/types": ["../../packages/types/src"],
-      "@video-downloader/config": ["../../packages/config/src"],
-      "@video-downloader/database": ["../../packages/database/src"],
-      "@video-downloader/security": ["../../packages/security/src"],
-      "@video-downloader/media-extractor": ["../../packages/media-extractor/src"]
+      "@video-downloader/types": ["../../packages/types/dist"],
+      "@video-downloader/config": ["../../packages/config/dist"],
+      "@video-downloader/database": ["../../packages/database/dist"],
+      "@video-downloader/security": ["../../packages/security/dist"],
+      "@video-downloader/media-extractor": ["../../packages/media-extractor/dist"]
     }
-  }
+  },
+  "include": ["src/**/*"],
+  "exclude": ["**/*.spec.ts", "dist", "node_modules"]
 }

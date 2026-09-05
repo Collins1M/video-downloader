@@ -1,95 +1,97 @@
-# Local Development in WSL (Non-Docker)
+# WSL Development Guide
 
-This guide explains how to run the full stack directly within Windows Subsystem for Linux (WSL) to save disk space and system resources compared to Docker Desktop.
+This guide covers two ways to run the Video Downloader project within Windows Subsystem for Linux (WSL).
 
-## 1. System Dependencies
+---
 
-Open your WSL terminal and install the required services and media processing tools:
+## Option A: Running with Docker (Recommended)
+
+This is the simplest way to get started. It uses Docker to manage the database, Redis, and application services, ensuring all dependencies are isolated.
+
+### 1. Prerequisites
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed on Windows with **WSL 2 backend** enabled.
+- Alternatively, Docker Engine installed directly inside your WSL distribution.
+
+### 2. Setup & Run
+Open your WSL terminal in the project root:
 
 ```bash
-# 1. Update and install Node.js (v20+)
+# 1. Create environment file
+cp .env.example .env
+
+# 2. Start the full stack
+docker compose up --build
+```
+
+The API will be available at `http://localhost:4000` and the Admin/Web apps on their respective ports.
+
+---
+
+## Option B: Running without Docker (High Performance)
+
+Run services directly in WSL for maximum performance and lower memory overhead. This is ideal for machines with limited RAM.
+
+### 1. Install System Dependencies
+Open your WSL terminal:
+
+```bash
+# Update and install Node.js (v22+)
 sudo apt update
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
 sudo apt install -y nodejs
 
-# 2. Install PostgreSQL and Redis
+# Install PostgreSQL and Redis
 sudo apt install -y postgresql redis-server
 
-# 3. Install Media Tools (FFmpeg and yt-dlp)
+# Install Media Tools (FFmpeg and yt-dlp)
 sudo apt install -y ffmpeg
 sudo curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
 sudo chmod a+rx /usr/local/bin/yt-dlp
 ```
 
-## 2. Service Configuration
-
-### Start Services
+### 2. Configure & Start Services
 ```bash
+# Start the services
 sudo service postgresql start
 sudo service redis-server start
-```
 
-### Setup Database
-Create the user and database as defined in your `.env`:
+# Create the database user (match your .env)
+sudo -u postgres psql -c "CREATE USER postgres WITH PASSWORD '12341738';"
+sudo -u postgres psql -c "CREATE DATABASE video_downloader OWNER postgres;"
 
-```bash
-# Enter PostgreSQL shell
-sudo -u postgres psql
-
-# Run these SQL commands:
-CREATE USER postgres WITH PASSWORD '12341738';
-CREATE DATABASE video_downloader OWNER postgres;
-\q
-```
-
-## 3. Environment Setup
-
-Ensure your root `.env` file uses `localhost` for services since they are now running in the same WSL environment as your code:
-
-```env
-# Database
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=12341738
-POSTGRES_DB=video_downloader
-DATABASE_URL=postgresql://postgres:12341738@localhost:5432/video_downloader
-
-# Redis
-REDIS_URL=redis://localhost:6379
-
-# Temp storage (ensure this directory exists in WSL)
-TEMP_DIR=/var/tmp/video-downloader
-```
-
-Create the temp directory:
-```bash
+# Create temp storage directory
 sudo mkdir -p /var/tmp/video-downloader
 sudo chown $(whoami) /var/tmp/video-downloader
 ```
 
-## 4. Application Build & Run
+### 3. Environment Setup
+Update your `.env` to point to `localhost` instead of docker service names:
 
-From the project root:
+```env
+DATABASE_URL=postgresql://postgres:12341738@localhost:5432/video_downloader
+REDIS_URL=redis://localhost:6379
+TEMP_DIR=/var/tmp/video-downloader
+```
+
+### 4. Application Run
+> [!IMPORTANT]
+> **Performance Tip:** Ensure your project is located in the native Linux filesystem (e.g., `~/projects/`) rather than a Windows mount (`/mnt/d/`). Node operations are 20-50x faster in the home directory.
 
 ```bash
-# 1. Install dependencies
-npm ci
-
-# 2. Build internal packages (Critical step)
-npm run build:packages
-
-# 3. Setup Database Schema
+npm install
 npm run db:generate
+npm run build:packages
 npm run db:migrate
 
-# 4. Start Development Servers
-# It is recommended to run these in separate terminal windows or tabs:
-npm run dev:api     # API on http://localhost:4000
-npm run dev:worker  # Background processing
-npm run dev:web     # Frontend on http://localhost:3000
+# Start the apps (in separate terminals)
+npm run dev:api
+npm run dev:worker
 ```
+
+---
 
 ## Troubleshooting
 
-- **Redis Connection**: If the worker can't connect, check if redis is bound to `127.0.0.1` in `/etc/redis/redis.conf`.
-- **yt-dlp version**: If downloads fail, update yt-dlp: `sudo yt-dlp -U`.
-- **Memory usage**: WSL can consume significant RAM. You can limit this by creating a `%USERPROFILE%\.wslconfig` file in Windows.
+- **Redis Connection**: If the worker can't connect, ensure `redis-server` is running: `sudo service redis-server status`.
+- **yt-dlp version**: If extraction fails, update it: `sudo yt-dlp -U`.
+- **WSL Memory Limit**: If WSL is using too much RAM, create a `.wslconfig` file in your Windows user profile (`%USERPROFILE%`) to limit its resource consumption.
