@@ -21,7 +21,7 @@
     "prisma": "^6.4.0"
   },
   "devDependencies": {
-    "@prometheus-io/client": "^1.0.2",
+    "@prometheus-io/client": "^0.16.1",
     "dotenv": "^17.4.2",
     "typescript": "^6.0.2"
   },
