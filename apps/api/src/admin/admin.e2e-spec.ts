@@ -4,6 +4,8 @@
  */
 import { Test, TestingModule } from "@nestjs/testing";
 import { INestApplication } from "@nestjs/common";
+import { Reflector } from "@nestjs/core";
+import { Logger } from "nestjs-pino";
 import { vi } from "vitest";
 import request from "supertest";
 import helmet from "helmet";
@@ -29,14 +31,10 @@ describe("Admin endpoints (e2e)", () => {
     process.env.ADMIN_PASSWORD = ADMIN_PASS;
 
     const moduleRef: TestingModule = await Test.createTestingModule({ imports: [AppModule] })
-      .overrideModule(AppLoggerModule)
-      .useModule(
-        class {
-          static forRoot() {
-            return { module: class {} };
-          }
-        },
-      )
+      .overrideProvider(Logger)
+      .useValue({ log: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() })
+      .overrideProvider(Reflector)
+      .useValue(new Reflector())
       .overrideProvider(MediaAnalyzer)
       .useValue({ analyze: vi.fn() })
       .compile();

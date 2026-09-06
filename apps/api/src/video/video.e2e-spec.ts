@@ -18,6 +18,8 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Test, TestingModule } from "@nestjs/testing";
+import { Reflector } from "@nestjs/core";
+import { Logger } from "nestjs-pino";
 import { vi } from "vitest";
 import { INestApplication, ValidationPipe } from "@nestjs/common";
 import type { NestExpressApplication } from "@nestjs/platform-express";
@@ -49,14 +51,10 @@ const stubAnalyzeResponse = {
 
 async function buildApp(overrideUrlValidator: boolean): Promise<{ app: INestApplication; prisma: PrismaService }> {
   const builder = Test.createTestingModule({ imports: [AppModule] })
-    .overrideModule(AppLoggerModule)
-    .useModule(
-      class {
-        static forRoot() {
-          return { module: class {} };
-        }
-      },
-    )
+    .overrideProvider(Logger)
+    .useValue({ log: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() })
+    .overrideProvider(Reflector)
+    .useValue(new Reflector())
     .overrideProvider(MediaAnalyzer)
     .useValue({ analyze: vi.fn().mockResolvedValue(stubAnalyzeResponse) });
 
