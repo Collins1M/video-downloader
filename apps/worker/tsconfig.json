@@ -15,7 +15,7 @@
     "forceConsistentCasingInFileNames": true,
     "moduleResolution": "node",
     "ignoreDeprecations": "6.0",
-    "types": ["node"],
+    "types": ["node", "vitest/globals"],
     "paths": {
       "@video-downloader/types": ["../../packages/types/dist"],
       "@video-downloader/config": ["../../packages/config/dist"],

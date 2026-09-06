@@ -56,7 +56,7 @@ export async function processVideoJob(job: Job<VideoProcessingJobData>): Promise
     // hiccup here shouldn't fail the whole job. Best-effort only.
     await prisma.downloadJob
       .update({ where: { id: downloadJobId }, data: { progress: percent } })
-      .catch((err) => log.warn({ err }, "Progress update failed"));
+      .catch((err: unknown) => log.warn({ err }, "Progress update failed"));
   };
 
   try {
@@ -166,7 +166,7 @@ export async function processVideoJob(job: Job<VideoProcessingJobData>): Promise
           where: { id: downloadJobId },
           data: { status: "failed", error: message, completedAt: new Date() },
         })
-        .catch((dbErr) => log.error({ err: dbErr }, "Failed to record failure in DB"));
+        .catch((dbErr: unknown) => log.error({ err: dbErr }, "Failed to record failure in DB"));
 
       await fs.rm(jobDir, { recursive: true, force: true }).catch(() => {});
 
@@ -190,7 +190,7 @@ export async function processVideoJob(job: Job<VideoProcessingJobData>): Promise
 
     await prisma.downloadJob
       .update({ where: { id: downloadJobId }, data: { status: "queued", progress: 0 } })
-      .catch((dbErr) => log.error({ err: dbErr }, "Failed to reset job for retry"));
+      .catch((dbErr: unknown) => log.error({ err: dbErr }, "Failed to reset job for retry"));
 
     await fs.rm(jobDir, { recursive: true, force: true }).catch(() => {});
 
