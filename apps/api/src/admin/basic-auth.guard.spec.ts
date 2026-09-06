@@ -1,12 +1,13 @@
 import { ExecutionContext, UnauthorizedException } from "@nestjs/common";
 import { AdminBasicAuthGuard } from "./basic-auth.guard";
+import { Mock } from "vitest";
 
 function basicAuthHeader(username: string, password: string): string {
   return `Basic ${Buffer.from(`${username}:${password}`).toString("base64")}`;
 }
 
 function makeContext(authorization?: string) {
-  const setHeader = jest.fn();
+  const setHeader = vi.fn();
   const context = {
     switchToHttp: () => ({
       getRequest: () => ({ headers: { authorization } }),
@@ -17,11 +18,11 @@ function makeContext(authorization?: string) {
 }
 
 describe("AdminBasicAuthGuard", () => {
-  let getMock: jest.Mock;
+  let getMock: Mock;
   let guard: AdminBasicAuthGuard;
 
   beforeEach(() => {
-    getMock = jest.fn();
+    getMock = vi.fn();
     const config = { get: getMock } as any;
     guard = new AdminBasicAuthGuard(config);
   });

@@ -21,13 +21,31 @@
     "prisma": "^6.4.0"
   },
   "devDependencies": {
+    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/core": "^1.30.0",
+    "@opentelemetry/resources": "^1.30.0",
+    "@opentelemetry/sdk-trace": "^2.11.0",
+    "@opentelemetry/sdk-trace-base": "^1.30.0",
     "@prometheus-io/client": "^0.16.1",
+    "@sentry/conventions": "^0.16.0",
+    "@sentry/core": "^10.72.0",
+    "@sentry/node-core": "^10.72.0",
+    "@sentry/opentelemetry": "^10.72.0",
+    "@sentry/server-utils": "^10.72.0",
     "dotenv": "^17.4.2",
+    "es-toolkit": "^1.31.0",
     "estree-walker": "^3.0.3",
+    "libphonenumber-js": "^1.11.0",
+    "validator": "^13.12.0",
+    "lightningcss": "^1.33.0",
     "magic-string": "^1.2.3",
     "obug": "^1.0.0",
+    "pathe": "^2.0.3",
     "picocolors": "^1.1.1",
-    "typescript": "^6.0.2"
+    "rolldown": "^1.2.7",
+    "typescript": "^6.0.2",
+    "vite": "^8.2.2",
+    "vitest": "^4.1.11"
   },
   "overrides": {
     "@nestjs/throttler": {

@@ -11,7 +11,7 @@ describe("Health endpoint (e2e)", () => {
   beforeAll(async () => {
     const moduleRef: TestingModule = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(MediaAnalyzer)
-      .useValue({ analyze: jest.fn() })
+      .useValue({ analyze: vi.fn() })
       .compile();
 
     app = moduleRef.createNestApplication();

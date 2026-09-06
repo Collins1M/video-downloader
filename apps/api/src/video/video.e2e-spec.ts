@@ -48,11 +48,11 @@ const stubAnalyzeResponse = {
 async function buildApp(overrideUrlValidator: boolean): Promise<{ app: INestApplication; prisma: PrismaService }> {
   const builder = Test.createTestingModule({ imports: [AppModule] })
     .overrideProvider(MediaAnalyzer)
-    .useValue({ analyze: jest.fn().mockResolvedValue(stubAnalyzeResponse) });
+    .useValue({ analyze: vi.fn().mockResolvedValue(stubAnalyzeResponse) });
 
   if (overrideUrlValidator) {
     builder.overrideProvider(UrlValidatorService).useValue({
-      validate: jest.fn().mockImplementation(async (url: string) => new URL(url)),
+      validate: vi.fn().mockImplementation(async (url: string) => new URL(url)),
     });
   }
 
@@ -418,7 +418,7 @@ describe("Video endpoints (e2e)", () => {
 
   describe("Reliability: orphaned-row prevention on enqueue failure", () => {
     it("marks the job failed rather than leaving it stuck queued if enqueueing fails", async () => {
-      const addSpy = jest.spyOn(queue, "add").mockRejectedValueOnce(new Error("Redis unreachable"));
+      const addSpy = vi.spyOn(queue, "add").mockRejectedValueOnce(new Error("Redis unreachable"));
 
       const res = await request(app.getHttpServer())
         .post("/api/video/download")

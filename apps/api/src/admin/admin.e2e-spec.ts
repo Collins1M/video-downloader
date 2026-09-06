@@ -28,7 +28,7 @@ describe("Admin endpoints (e2e)", () => {
 
     const moduleRef: TestingModule = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(MediaAnalyzer)
-      .useValue({ analyze: jest.fn() })
+      .useValue({ analyze: vi.fn() })
       .compile();
 
     app = moduleRef.createNestApplication();

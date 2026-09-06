@@ -2,6 +2,8 @@ import { ExecutionContext } from "@nestjs/common";
 import { ConcurrentJobsGuard } from "./concurrent-jobs.guard";
 import { TooManyConcurrentJobsException } from "./too-many-concurrent-jobs.exception";
 
+import { Mock } from "vitest";
+
 function makeContext(ip: string): ExecutionContext {
   return {
     switchToHttp: () => ({
@@ -12,13 +14,13 @@ function makeContext(ip: string): ExecutionContext {
 }
 
 describe("ConcurrentJobsGuard", () => {
-  let countMock: jest.Mock;
-  let getMock: jest.Mock;
+  let countMock: Mock;
+  let getMock: Mock;
   let guard: ConcurrentJobsGuard;
 
   beforeEach(() => {
-    countMock = jest.fn();
-    getMock = jest.fn();
+    countMock = vi.fn();
+    getMock = vi.fn();
     const prisma = { downloadJob: { count: countMock } } as any;
     const config = { get: getMock } as any;
     guard = new ConcurrentJobsGuard(prisma, config);
