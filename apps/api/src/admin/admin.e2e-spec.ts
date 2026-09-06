@@ -37,8 +37,6 @@ describe("Admin endpoints (e2e)", () => {
         providers: [{ provide: Logger, useValue: { log: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() } }],
         exports: [Logger],
       })
-      .overrideProvider(Reflector)
-      .useValue(new Reflector())
       .overrideProvider(MediaAnalyzer)
       .useValue({ analyze: vi.fn() })
       .compile();
