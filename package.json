@@ -26,6 +26,10 @@
     "typescript": "^6.0.2"
   },
   "overrides": {
+    "@nestjs/throttler": {
+      "@nestjs/common": "^12.0.1",
+      "@nestjs/core": "^12.0.1"
+    },
     "test-exclude": {
       "glob": "^11.0.0"
     },
