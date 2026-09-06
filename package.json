@@ -42,6 +42,8 @@
     "@nestjs/core": true,
     "@prisma/client": true,
     "@prisma/engines": true,
-    "@scarf/scarf": true
+    "@scarf/scarf": true,
+    "@parcel/watcher@2.6.0": true,
+    "unrs-resolver@1.12.2": true
   }
 }
