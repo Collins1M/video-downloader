@@ -23,7 +23,7 @@
     "resolveJsonModule": true,
     "moduleResolution": "node",
     "ignoreDeprecations": "6.0",
-    "types": ["node"],
+    "types": ["node", "jest"],
     "paths": {
       "@video-downloader/types": ["../../packages/types/dist"],
       "@video-downloader/config": ["../../packages/config/dist"],
