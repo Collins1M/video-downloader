@@ -8,6 +8,18 @@ export default defineConfig({
     // SWC plugin is required to support NestJS decorators and metadata in Vitest
     swc.vite({
       module: { type: "es6" },
+      jsc: {
+        keepClassNames: true,
+        target: "es2022",
+        parser: {
+          syntax: "typescript",
+          decorators: true,
+        },
+        transform: {
+          legacyDecorator: true,
+          decoratorMetadata: true,
+        },
+      },
     }),
   ],
   test: {

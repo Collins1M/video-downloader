@@ -1,6 +1,6 @@
 import { Module } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
-import { APP_GUARD, DiscoveryModule, Reflector } from "@nestjs/core";
+import { APP_GUARD, Reflector } from "@nestjs/core";
 import { ThrottlerModule, ThrottlerGuard } from "@nestjs/throttler";
 import { PrismaModule } from "./prisma/prisma.module";
 import { VideoModule } from "./video/video.module";
@@ -13,7 +13,6 @@ import { AppLoggerModule } from "./common/logging/logger.module";
 
 @Module({
   imports: [
-    DiscoveryModule,
     AppLoggerModule,
     ConfigModule.forRoot({
       isGlobal: true,
@@ -59,6 +58,7 @@ import { AppLoggerModule } from "./common/logging/logger.module";
     MetricsModule,
   ],
   providers: [
+    Reflector,
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard, // applies to every route unless overridden with @SkipThrottle/@Throttle
