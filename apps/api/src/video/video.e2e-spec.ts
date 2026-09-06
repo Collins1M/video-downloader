@@ -51,8 +51,12 @@ const stubAnalyzeResponse = {
 
 async function buildApp(overrideUrlValidator: boolean): Promise<{ app: INestApplication; prisma: PrismaService }> {
   const builder = Test.createTestingModule({ imports: [AppModule] })
-    .overrideProvider(Logger)
-    .useValue({ log: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() })
+    .overrideModule(AppLoggerModule)
+    .useModule({
+      module: class MockAppLoggerModule {},
+      providers: [{ provide: Logger, useValue: { log: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() } }],
+      exports: [Logger],
+    })
     .overrideProvider(Reflector)
     .useValue(new Reflector())
     .overrideProvider(MediaAnalyzer)

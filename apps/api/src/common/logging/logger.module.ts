@@ -1,4 +1,4 @@
-import { Global, Module } from "@nestjs/common";
+import { Module } from "@nestjs/common";
 import { LoggerModule } from "nestjs-pino";
 import { randomUUID } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
@@ -6,7 +6,6 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 const isProd = process.env.NODE_ENV === "production";
 const isTest = process.env.NODE_ENV === "test";
 
-@Global()
 @Module({
   imports: [
     LoggerModule.forRoot({
