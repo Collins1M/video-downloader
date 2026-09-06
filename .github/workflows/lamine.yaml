@@ -79,6 +79,7 @@ jobs:
       ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
       TEMP_DIR: /tmp/video-downloader-test
       DATABASE_URL: postgresql://${{ secrets.POSTGRES_USER }}:${{ secrets.POSTGRESDB_PASSWORD }}@localhost:5432/${{ secrets.POSTGRES_DB }}
+      REDIS_URL: redis://localhost:6379
 
     steps:
       - name: Checkout
