@@ -18,12 +18,14 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Test, TestingModule } from "@nestjs/testing";
+import { vi } from "vitest";
 import { INestApplication, ValidationPipe } from "@nestjs/common";
 import type { NestExpressApplication } from "@nestjs/platform-express";
 import { getQueueToken } from "@nestjs/bullmq";
 import type { Queue } from "bullmq";
 import request from "supertest";
 import { AppModule } from "../app.module";
+import { AppLoggerModule } from "../common/logging/logger.module";
 import { PrismaService } from "../prisma/prisma.service";
 import { MediaAnalyzer } from "./media-analyzer.interface";
 import { UrlValidatorService } from "../common/security/url-validator.service";
@@ -47,6 +49,14 @@ const stubAnalyzeResponse = {
 
 async function buildApp(overrideUrlValidator: boolean): Promise<{ app: INestApplication; prisma: PrismaService }> {
   const builder = Test.createTestingModule({ imports: [AppModule] })
+    .overrideModule(AppLoggerModule)
+    .useModule(
+      class {
+        static forRoot() {
+          return { module: class {} };
+        }
+      },
+    )
     .overrideProvider(MediaAnalyzer)
     .useValue({ analyze: vi.fn().mockResolvedValue(stubAnalyzeResponse) });
 
@@ -89,7 +99,11 @@ describe("Swagger docs (e2e)", () => {
   });
 
   afterAll(async () => {
-    await app.close();
+    try {
+      if (app) {
+        await app.close();
+      }
+    } catch (e) {}
   }, 15000);
 
   it("serves the Swagger UI at /docs, outside the /api prefix", async () => {
@@ -135,12 +149,20 @@ describe("Video endpoints (e2e)", () => {
   });
 
   afterEach(async () => {
-    await prisma.downloadJob.deleteMany({});
-    await queue.drain();
+    if (prisma) {
+      await prisma.downloadJob.deleteMany({});
+    }
+    if (queue) {
+      await queue.drain();
+    }
   });
 
   afterAll(async () => {
-    await app.close();
+    try {
+      if (app) {
+        await app.close();
+      }
+    } catch (e) {}
     rmSync(TEMP_DIR, { recursive: true, force: true });
   }, 15000);
 
@@ -443,11 +465,17 @@ describe("SSRF protection (e2e, real validator — no override)", () => {
   });
 
   afterEach(async () => {
-    await prisma.downloadJob.deleteMany({});
+    if (prisma) {
+      await prisma.downloadJob.deleteMany({});
+    }
   });
 
   afterAll(async () => {
-    await app.close();
+    try {
+      if (app) {
+        await app.close();
+      }
+    } catch (e) {}
   }, 15000);
 
   it("blocks a request targeting a loopback address", async () => {

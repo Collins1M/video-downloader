@@ -22,7 +22,7 @@
     "esModuleInterop": true,
     "resolveJsonModule": true,
     "moduleResolution": "node",
-    "ignoreDeprecations": "6.0",
+    "ignoreDeprecations": "5.0",
     "types": ["node", "vitest/globals"],
     "paths": {
       "@video-downloader/types": ["../../packages/types/dist"],
@@ -33,5 +33,5 @@
     }
   },
   "include": ["src/**/*"],
-  "exclude": ["**/*.spec.ts", "**/*.e2e-spec.ts", "dist", "node_modules"]
+  "exclude": ["dist", "node_modules"]
 }

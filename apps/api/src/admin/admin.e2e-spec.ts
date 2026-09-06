@@ -4,9 +4,11 @@
  */
 import { Test, TestingModule } from "@nestjs/testing";
 import { INestApplication } from "@nestjs/common";
+import { vi } from "vitest";
 import request from "supertest";
 import helmet from "helmet";
 import { AppModule } from "../app.module";
+import { AppLoggerModule } from "../common/logging/logger.module";
 import { PrismaService } from "../prisma/prisma.service";
 import { MediaAnalyzer } from "../video/media-analyzer.interface";
 import { setupSwagger } from "../swagger";
@@ -27,6 +29,14 @@ describe("Admin endpoints (e2e)", () => {
     process.env.ADMIN_PASSWORD = ADMIN_PASS;
 
     const moduleRef: TestingModule = await Test.createTestingModule({ imports: [AppModule] })
+      .overrideModule(AppLoggerModule)
+      .useModule(
+        class {
+          static forRoot() {
+            return { module: class {} };
+          }
+        },
+      )
       .overrideProvider(MediaAnalyzer)
       .useValue({ analyze: vi.fn() })
       .compile();
@@ -41,11 +51,17 @@ describe("Admin endpoints (e2e)", () => {
   });
 
   afterEach(async () => {
-    await prisma.downloadJob.deleteMany({});
+    if (prisma) {
+      await prisma.downloadJob.deleteMany({});
+    }
   });
 
   afterAll(async () => {
-    await app.close();
+    try {
+      if (app) {
+        await app.close();
+      }
+    } catch (e) {}
   }, 15000);
 
   it("rejects requests with no credentials", async () => {

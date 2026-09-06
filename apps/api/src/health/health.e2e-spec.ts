@@ -1,15 +1,25 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { INestApplication } from "@nestjs/common";
+import { vi } from "vitest";
 import request from "supertest";
 import helmet from "helmet";
 import { AppModule } from "../app.module";
 import { MediaAnalyzer } from "../video/media-analyzer.interface";
 import { setupSwagger } from "../swagger";
+import { AppLoggerModule } from "../common/logging/logger.module";
 
 describe("Health endpoint (e2e)", () => {
   let app: INestApplication;
   beforeAll(async () => {
     const moduleRef: TestingModule = await Test.createTestingModule({ imports: [AppModule] })
+      .overrideModule(AppLoggerModule)
+      .useModule(
+        class {
+          static forRoot() {
+            return { module: class {} };
+          }
+        },
+      )
       .overrideProvider(MediaAnalyzer)
       .useValue({ analyze: vi.fn() })
       .compile();
@@ -22,7 +32,13 @@ describe("Health endpoint (e2e)", () => {
   });
 
   afterAll(async () => {
-    await app.close();
+    try {
+      if (app) {
+        await app.close();
+      }
+    } catch (e) {
+      // Ignore errors during cleanup if the app failed to start
+    }
   }, 15000);
 
   it("GET /health returns ok when the database is reachable", async () => {
