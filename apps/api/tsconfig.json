@@ -9,7 +9,6 @@
     "target": "ES2021",
     "sourceMap": true,
     "outDir": "./dist",
-    "baseUrl": "./",
     "rootDir": "src",
     "incremental": true,
     "skipLibCheck": true,
@@ -21,15 +20,14 @@
     "noFallthroughCasesInSwitch": false,
     "esModuleInterop": true,
     "resolveJsonModule": true,
-    "moduleResolution": "node",
-    "ignoreDeprecations": "5.0",
+    "moduleResolution": "bundler",
     "types": ["node", "vitest/globals"],
     "paths": {
-      "@video-downloader/types": ["../../packages/types/dist"],
-      "@video-downloader/config": ["../../packages/config/dist"],
-      "@video-downloader/database": ["../../packages/database/dist"],
-      "@video-downloader/security": ["../../packages/security/dist"],
-      "@video-downloader/media-extractor": ["../../packages/media-extractor/dist"]
+      "@video-downloader/types": ["./../../packages/types/dist"],
+      "@video-downloader/config": ["./../../packages/config/dist"],
+      "@video-downloader/database": ["./../../packages/database/dist"],
+      "@video-downloader/security": ["./../../packages/security/dist"],
+      "@video-downloader/media-extractor": ["./../../packages/media-extractor/dist"]
     }
   },
   "include": ["src/**/*"],
