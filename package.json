@@ -23,6 +23,7 @@
   "devDependencies": {
     "@prometheus-io/client": "^0.16.1",
     "dotenv": "^17.4.2",
+    "obug": "^1.0.0",
     "typescript": "^6.0.2"
   },
   "overrides": {
@@ -34,7 +35,7 @@
       "glob": "^11.0.0"
     },
     "deepmerge-ts": "^8.0.0",
-    "glob": "^11.0.0",
+    "glob": "^13.0.6",
     "rimraf": "^6.0.0",
     "inflight": "^1.0.6",
     "async": "^3.2.6"

@@ -1,5 +1,5 @@
 import { createServer } from "node:http";
-import * as client from "prom-client";
+import * as client from "@prometheus-io/client";
 import { logger } from "./logger";
 
 export const register = new client.Registry();
