@@ -15,6 +15,11 @@ export default defineConfig({
     environment: "node",
     pool: "threads",
     include: ["src/**/*.spec.ts", "src/**/*.e2e-spec.ts"],
+    server: {
+      deps: {
+        inline: [/@nestjs/, /@video-downloader/],
+      },
+    },
     alias: {
       "@video-downloader/types": "../../packages/types/src",
       "@video-downloader/database": "../../packages/database/src",
