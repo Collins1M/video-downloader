@@ -213,12 +213,14 @@ jobs:
             update_env_val "LOG_LEVEL" "${{ secrets.LOG_LEVEL }}"
             update_env_val "SENTRY_DSN" "${{ secrets.SENTRY_DSN }}"
 
-            # Sync DATABASE_URL to use the 'postgres' Docker hostname if secrets are provided.
+            # Sync DATABASE_URL and REDIS_URL to use Docker hostnames if secrets are provided.
             if [ -n "${{ secrets.POSTGRES_USER }}" ] && [ -n "${{ secrets.POSTGRESDB_PASSWORD }}" ]; then
               PG_DB="${{ secrets.POSTGRES_DB }}"
               DB_URL="postgresql://${{ secrets.POSTGRES_USER }}:${{ secrets.POSTGRESDB_PASSWORD }}@postgres:5432/${PG_DB:-video_downloader}"
               update_env_val "DATABASE_URL" "$DB_URL"
             fi
+            
+            update_env_val "REDIS_URL" "redis://redis:6379"
 
             echo ".env patched with secrets. Manually tuned variables were preserved."
 
