@@ -167,9 +167,6 @@ jobs:
 
             cd /root/video-downloader
 
-            echo "Current directory:"
-            pwd
-
             echo "--------------------------------------"
             echo "Updating repository"
             echo "--------------------------------------"
@@ -177,14 +174,53 @@ jobs:
             git fetch origin main
             git reset --hard origin/main
 
-            echo "Latest commit:"
-            git log -1 --oneline
+            echo "--------------------------------------"
+            echo "Patching .env with GitHub Secrets"
+            echo "--------------------------------------"
+
+            # Ensure .env exists so we have something to patch
+            if [ ! -f .env ]; then
+              echo ".env not found, creating from .env.example"
+              cp .env.example .env
+            fi
+
+            # Helper to update a key if and only if the secret is not empty.
+            # This preserves existing server-side values for missing secrets.
+            update_env_val() {
+              local key="$1"
+              local val="$2"
+              if [ -n "$val" ]; then
+                # Escape special characters for sed (like / or & in passwords)
+                local escaped_val=$(echo "$val" | sed 's/[&/\]/\\&/g')
+                if grep -q "^${key}=" .env; then
+                  sed -i "s|^${key}=.*|${key}=${escaped_val}|" .env
+                else
+                  echo "${key}=${val}" >> .env
+                fi
+              fi
+            }
+
+            # Only these keys will be updated if they exist in GitHub Secrets.
+            # If a secret is not set in GitHub, the value in the server's .env stays.
+            update_env_val "POSTGRES_USER" "${{ secrets.POSTGRES_USER }}"
+            update_env_val "POSTGRES_PASSWORD" "${{ secrets.POSTGRESDB_PASSWORD }}"
+            update_env_val "POSTGRES_DB" "${{ secrets.POSTGRES_DB }}"
+            update_env_val "ADMIN_USERNAME" "${{ secrets.ADMIN_USERNAME }}"
+            update_env_val "ADMIN_PASSWORD" "${{ secrets.ADMIN_PASSWORD }}"
+
+            # Sync DATABASE_URL to use the 'postgres' Docker hostname if secrets are provided.
+            if [ -n "${{ secrets.POSTGRES_USER }}" ] && [ -n "${{ secrets.POSTGRESDB_PASSWORD }}" ]; then
+              DB_URL="postgresql://${{ secrets.POSTGRES_USER }}:${{ secrets.POSTGRESDB_PASSWORD }}@postgres:5432/${{ secrets.POSTGRES_DB:-video_downloader}}"
+              update_env_val "DATABASE_URL" "$DB_URL"
+            fi
+
+            echo ".env patched with secrets. Manually tuned variables were preserved."
 
             echo "--------------------------------------"
             echo "Building Docker images"
             echo "--------------------------------------"
 
-            docker compose build
+            docker compose --env-file .env build
 
             echo "--------------------------------------"
             echo "Starting PostgreSQL and Redis"

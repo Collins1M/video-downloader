@@ -15,11 +15,11 @@
     "moduleResolution": "bundler",
     "types": ["node", "vitest/globals"],
     "paths": {
-      "@video-downloader/types": ["./../../packages/types/dist"],
-      "@video-downloader/config": ["./../../packages/config/dist"],
-      "@video-downloader/database": ["./../../packages/database/dist"],
-      "@video-downloader/security": ["./../../packages/security/dist"],
-      "@video-downloader/media-extractor": ["./../../packages/media-extractor/dist"]
+      "@video-downloader/types": ["./../../packages/types/src"],
+      "@video-downloader/config": ["./../../packages/config/src"],
+      "@video-downloader/database": ["./../../packages/database/src"],
+      "@video-downloader/security": ["./../../packages/security/src"],
+      "@video-downloader/media-extractor": ["./../../packages/media-extractor/src"]
     }
   },
   "include": ["src/**/*"],

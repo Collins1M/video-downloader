@@ -51,36 +51,58 @@ vi.mock("./prisma", () => ({
   },
 }));
 
-vi.mock("@video-downloader/security", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@video-downloader/security")>();
-  return {
-    ...actual,
-    validateUrl: vi.fn().mockResolvedValue(new URL("https://example.com/video")),
-  };
-});
+const {
+  fetchYtDlpInfoMock,
+  fetchYtDlpFormatMock,
+  resolveFormatTargetMock,
+  mergeVideoAudioMock,
+  remuxToMp4Mock,
+  extractAudioToMp3Mock,
+} = vi.hoisted(() => ({
+  fetchYtDlpInfoMock: vi.fn(),
+  fetchYtDlpFormatMock: vi.fn(),
+  resolveFormatTargetMock: vi.fn(),
+  mergeVideoAudioMock: vi.fn(),
+  remuxToMp4Mock: vi.fn(),
+  extractAudioToMp3Mock: vi.fn(),
+}));
 
-const fetchYtDlpInfoMock = vi.fn();
-const fetchYtDlpFormatMock = vi.fn();
-const resolveFormatTargetMock = vi.fn();
+vi.mock("@video-downloader/security", () => ({
+  validateUrl: vi.fn().mockResolvedValue(new URL("https://example.com/video")),
+  UnsafeUrlError: class UnsafeUrlError extends Error {},
+  safeTempFilePath: (dir: string, jobId: string, file: string) => join(dir, jobId, file),
+  safeTempJobDir: (dir: string, jobId: string) => join(dir, jobId),
+}));
 
-vi.mock("@video-downloader/media-extractor", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@video-downloader/media-extractor")>();
-  return {
-    ...actual,
-    fetchYtDlpInfo: (...args: unknown[]) => fetchYtDlpInfoMock(...args),
-    fetchYtDlpFormat: (...args: unknown[]) => fetchYtDlpFormatMock(...args),
-    resolveFormatTarget: (...args: unknown[]) => resolveFormatTargetMock(...args),
-  };
-});
-
-const mergeVideoAudioMock = vi.fn();
-const remuxToMp4Mock = vi.fn();
-const extractAudioToMp3Mock = vi.fn();
+vi.mock("@video-downloader/media-extractor", () => ({
+  fetchYtDlpInfo: fetchYtDlpInfoMock,
+  fetchYtDlpFormat: fetchYtDlpFormatMock,
+  resolveFormatTarget: resolveFormatTargetMock,
+  outputFileName: (f: string) => (f.includes("mp3") ? "output.mp3" : "output.mp4"),
+  FormatNotFoundError: class FormatNotFoundError extends Error {
+    constructor() {
+      super("The requested format is no longer available for this video.");
+    }
+  },
+  ExtractionFailedError: class ExtractionFailedError extends Error {
+    constructor() {
+      super("Something went wrong while preparing your download. Please try again.");
+    }
+  },
+  FileTooLargeError: class FileTooLargeError extends Error {
+    constructor() {
+      super("This video exceeds the maximum supported file size.");
+    }
+  },
+  UnsupportedSourceError: class UnsupportedSourceError extends Error {},
+  VideoUnavailableError: class VideoUnavailableError extends Error {},
+  ExtractionTimeoutError: class ExtractionTimeoutError extends Error {},
+}));
 
 vi.mock("./ffmpeg", () => ({
-  mergeVideoAudio: (...args: unknown[]) => mergeVideoAudioMock(...args),
-  remuxToMp4: (...args: unknown[]) => remuxToMp4Mock(...args),
-  extractAudioToMp3: (...args: unknown[]) => extractAudioToMp3Mock(...args),
+  mergeVideoAudio: mergeVideoAudioMock,
+  remuxToMp4: remuxToMp4Mock,
+  extractAudioToMp3: extractAudioToMp3Mock,
 }));
 
 const { processVideoJob } = await import("./queue-processor");

@@ -32,6 +32,8 @@ services:
       redis:
         condition: service_started
     restart: unless-stopped
+    ports:
+      - "4000:4000"
     networks:
       - internal
     healthcheck:
@@ -86,8 +88,6 @@ services:
       POSTGRES_INITDB_ARGS: "-c shared_buffers=256MB -c max_connections=200"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
     restart: unless-stopped
     networks:
       - internal
