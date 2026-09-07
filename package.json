@@ -74,7 +74,7 @@
       "@nestjs/common": "^11.0.0",
       "@nestjs/core": "^11.0.0"
     },
-    "@nestjs/swagger": "^11.0.0",
+    "@nestjs/swagger": "~11.0.0",
     "test-exclude": {
       "glob": "^11.0.0"
     },
