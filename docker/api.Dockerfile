@@ -5,7 +5,6 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 COPY apps/api/package.json apps/api/package.json
 COPY apps/worker/package.json apps/worker/package.json
-COPY apps/web/package.json apps/web/package.json
 COPY packages/types/package.json packages/types/package.json
 COPY packages/config/package.json packages/config/package.json
 COPY packages/security/package.json packages/security/package.json
@@ -45,13 +44,12 @@ ENV NODE_ENV=production
 # available to verify whether a partial workspace subset is tolerated —
 # copying everything is the safe choice over guessing wrong and shipping
 # a build that fails in CI. Trade-off: this image's node_modules
-# includes apps/web's and apps/worker's production dependencies too,
+# includes apps/worker's production dependencies too,
 # which it never uses. Follow-up: verify the leaner subset works once
 # the docker-build CI job (.github/workflows/lamine.yaml) has run for real.
 COPY package.json package-lock.json ./
 COPY apps/api/package.json apps/api/package.json
 COPY apps/worker/package.json apps/worker/package.json
-COPY apps/web/package.json apps/web/package.json
 COPY packages/types/package.json packages/types/package.json
 COPY packages/config/package.json packages/config/package.json
 COPY packages/security/package.json packages/security/package.json

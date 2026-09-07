@@ -5,7 +5,6 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 COPY apps/api/package.json apps/api/package.json
 COPY apps/worker/package.json apps/worker/package.json
-COPY apps/web/package.json apps/web/package.json
 COPY packages/types/package.json packages/types/package.json
 COPY packages/config/package.json packages/config/package.json
 COPY packages/security/package.json packages/security/package.json
@@ -39,13 +38,10 @@ RUN apt-get update \
 ENV NODE_ENV=production
 
 # NOTE: copies every workspace's package.json (not just apps/worker's) —
-# see docker/api.Dockerfile for why (no Docker available in the sandbox
-# this was built in to verify a partial-subset `npm ci` works against
-# the whole-repo lockfile). Same bloat trade-off applies here.
+# includes apps/api's production dependencies too,
 COPY package.json package-lock.json ./
 COPY apps/api/package.json apps/api/package.json
 COPY apps/worker/package.json apps/worker/package.json
-COPY apps/web/package.json apps/web/package.json
 COPY packages/types/package.json packages/types/package.json
 COPY packages/config/package.json packages/config/package.json
 COPY packages/security/package.json packages/security/package.json
