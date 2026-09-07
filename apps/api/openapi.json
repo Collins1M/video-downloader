@@ -1,0 +1,316 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/api/video/analyze": {
+      "post": {
+        "description": "Fetches metadata for the given video page (title, thumbnail, duration) and the set of formats available to download. Does not start a download or create a job.",
+        "operationId": "VideoController_analyze",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnalyzeRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Video metadata and available formats."
+          },
+          "400": {
+            "description": "Missing or malformed url."
+          },
+          "404": {
+            "description": "The video couldn't be found or accessed."
+          },
+          "422": {
+            "description": "This video source isn't supported."
+          },
+          "429": {
+            "description": "Rate limit exceeded for this tier."
+          }
+        },
+        "summary": "Analyze a video URL and list its downloadable formats",
+        "tags": [
+          "video"
+        ]
+      }
+    },
+    "/api/video/download": {
+      "post": {
+        "description": "Creates a DownloadJob and enqueues it for background processing. Poll GET /video/jobs/:id or subscribe to GET /video/jobs/:id/events to track progress.",
+        "operationId": "VideoController_createDownload",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDownloadRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The created job's id."
+          },
+          "400": {
+            "description": "Missing/malformed url or formatId."
+          },
+          "403": {
+            "description": "Too many concurrent jobs already in progress for this IP."
+          },
+          "429": {
+            "description": "Rate limit exceeded for this tier."
+          }
+        },
+        "summary": "Start a download job for a chosen format",
+        "tags": [
+          "video"
+        ]
+      }
+    },
+    "/api/video/jobs/{id}": {
+      "get": {
+        "operationId": "VideoController_getJob",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "The job id returned by POST /video/download.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current status and progress of the job."
+          },
+          "404": {
+            "description": "No job with that id."
+          },
+          "429": {
+            "description": "Rate limit exceeded for this tier."
+          }
+        },
+        "summary": "Get a download job's current status",
+        "tags": [
+          "video"
+        ]
+      },
+      "delete": {
+        "operationId": "VideoController_cancelJob",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "The job id to cancel.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The job's status after cancellation."
+          },
+          "404": {
+            "description": "No job with that id."
+          }
+        },
+        "summary": "Cancel an in-progress download job",
+        "tags": [
+          "video"
+        ]
+      }
+    },
+    "/api/video/jobs/{id}/events": {
+      "get": {
+        "description": "text/event-stream. Emits the job's current status immediately, then a message per progress update, then one final completed/failed/cancelled message before closing. Swagger UI can't execute SSE requests interactively — try this one with curl or the browser.",
+        "operationId": "VideoController_jobEvents",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "The job id to stream events for.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "SSE stream of JobEventPayload messages."
+          },
+          "404": {
+            "description": "No job with that id."
+          }
+        },
+        "summary": "Subscribe to a job's live progress via Server-Sent Events",
+        "tags": [
+          "video"
+        ]
+      }
+    },
+    "/api/video/jobs/{id}/file": {
+      "get": {
+        "description": "Streams the file and deletes it from temp storage once the response finishes.",
+        "operationId": "VideoController_downloadFile",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "The completed job's id.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The file, streamed as an attachment."
+          },
+          "404": {
+            "description": "No job with that id."
+          },
+          "409": {
+            "description": "The job hasn't finished processing yet."
+          },
+          "410": {
+            "description": "The job's file already expired and was deleted."
+          }
+        },
+        "summary": "Download a completed job's output file",
+        "tags": [
+          "video"
+        ]
+      }
+    },
+    "/api/admin/stats": {
+      "get": {
+        "operationId": "AdminController_getStats",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/admin/charts": {
+      "get": {
+        "operationId": "AdminController_getCharts",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/health": {
+      "get": {
+        "operationId": "HealthController_check",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Health"
+        ]
+      }
+    },
+    "/metrics": {
+      "get": {
+        "operationId": "MetricsController_getMetrics",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Metrics"
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "Video Downloader API",
+    "description": "Self-hosted video downloader API. This is a live reference generated from the running server's decorators.",
+    "version": "0.1.0",
+    "contact": {}
+  },
+  "tags": [
+    {
+      "name": "video",
+      "description": "Analyze, download, and track video processing jobs"
+    },
+    {
+      "name": "admin",
+      "description": "Operator-only stats and metrics, protected by HTTP Basic auth"
+    },
+    {
+      "name": "health",
+      "description": "Liveness/readiness check for orchestrators"
+    }
+  ],
+  "servers": [],
+  "components": {
+    "schemas": {
+      "AnalyzeRequestDto": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "The video page URL to analyze for downloadable formats.",
+            "example": "https://example.com/watch?v=abc123",
+            "maxLength": 2048
+          }
+        },
+        "required": [
+          "url"
+        ]
+      },
+      "CreateDownloadRequestDto": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "The video page URL to download.",
+            "example": "https://example.com/watch?v=abc123",
+            "maxLength": 2048
+          },
+          "formatId": {
+            "type": "string",
+            "description": "The id of one of the formats returned by POST /video/analyze.",
+            "example": "1080p-mp4",
+            "maxLength": 128,
+            "pattern": "^[a-zA-Z0-9_-]+$"
+          }
+        },
+        "required": [
+          "url",
+          "formatId"
+        ]
+      }
+    }
+  }
+}

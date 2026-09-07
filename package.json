@@ -18,6 +18,7 @@
     "docker:down": "docker compose down"
   },
   "dependencies": {
+    "@prisma/client": "^6.19.3",
     "prisma": "^6.4.0"
   },
   "devDependencies": {
@@ -41,23 +42,25 @@
     "@types/shimmer": "^1.2.0",
     "acorn-import-attributes": "^1.9.5",
     "cjs-module-lexer": "^1.4.3",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.15.1",
     "dotenv": "^17.4.2",
     "es-toolkit": "^1.31.0",
     "estree-walker": "^3.0.3",
     "import-in-the-middle": "^1.15.0",
     "libphonenumber-js": "^1.11.0",
-    "reflect-metadata": "^0.2.2",
-    "require-in-the-middle": "^7.5.2",
-    "rxjs": "^7.8.2",
-    "shimmer": "^1.2.1",
-    "validator": "^13.12.0",
     "lightningcss": "^1.33.0",
     "magic-string": "^1.2.3",
     "obug": "^1.0.0",
     "pathe": "^2.0.3",
     "picocolors": "^1.1.1",
+    "reflect-metadata": "^0.2.2",
+    "require-in-the-middle": "^7.5.2",
     "rolldown": "^1.2.7",
+    "rxjs": "^7.8.2",
+    "shimmer": "^1.2.1",
     "typescript": "^6.0.2",
+    "validator": "^13.12.0",
     "vite": "^8.2.2",
     "vitest": "^4.1.11"
   },
@@ -66,6 +69,7 @@
       "@nestjs/common": "^11.0.0",
       "@nestjs/core": "^11.0.0"
     },
+    "@nestjs/swagger": "^11.0.0",
     "test-exclude": {
       "glob": "^11.0.0"
     },
