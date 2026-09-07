@@ -21,10 +21,10 @@ import { Test, TestingModule } from "@nestjs/testing";
 import { Reflector } from "@nestjs/core";
 import { Logger } from "nestjs-pino";
 import { vi } from "vitest";
-import { INestApplication, ValidationPipe } from "@nestjs/common";
+import { INestApplication, ValidationPipe, RequestMethod } from "@nestjs/common";
 import type { NestExpressApplication } from "@nestjs/platform-express";
 import { getQueueToken } from "@nestjs/bullmq";
-import type { Queue } from "bullmq";
+import { Queue } from "bullmq";
 import request from "supertest";
 import { AppModule } from "../app.module";
 import { AppLoggerModule } from "../common/logging/logger.module";
@@ -71,7 +71,14 @@ async function buildApp(overrideUrlValidator: boolean): Promise<{ app: INestAppl
   const app = moduleRef.createNestApplication<NestExpressApplication>();
   app.set("trust proxy", 1);
   app.use(helmet({ contentSecurityPolicy: false, crossOriginResourcePolicy: { policy: "cross-origin" } }));
-  app.setGlobalPrefix("api", { exclude: ["health", "metrics", "docs", "docs/json"] });
+  app.setGlobalPrefix("api", {
+    exclude: [
+      { path: "health", method: RequestMethod.GET },
+      { path: "metrics", method: RequestMethod.GET },
+      { path: "api-docs", method: RequestMethod.GET },
+      { path: "api-docs/json", method: RequestMethod.GET },
+    ],
+  });
   setupSwagger(app);
   app.use(cookieParser());
   app.use(sessionIdMiddleware);
@@ -106,19 +113,19 @@ describe("Swagger docs (e2e)", () => {
     } catch (e) {}
   }, 15000);
 
-  it("serves the Swagger UI at /docs, outside the /api prefix", async () => {
-    const res = await request(app.getHttpServer()).get("/docs");
+  it("serves the Swagger UI at /api-docs, outside the /api prefix", async () => {
+    const res = await request(app.getHttpServer()).get("/api-docs");
     expect(res.status).toBe(200);
     expect(res.text).toContain("swagger-ui");
   });
 
-  it("is not reachable under /api/docs", async () => {
-    const res = await request(app.getHttpServer()).get("/api/docs");
+  it("is not reachable under /api/api-docs", async () => {
+    const res = await request(app.getHttpServer()).get("/api/api-docs");
     expect(res.status).toBe(404);
   });
 
-  it("serves a valid-looking OpenAPI document at /docs/json", async () => {
-    const res = await request(app.getHttpServer()).get("/docs/json");
+  it("serves a valid-looking OpenAPI document at /api-docs/json", async () => {
+    const res = await request(app.getHttpServer()).get("/api-docs/json");
     expect(res.status).toBe(200);
     expect(res.body.openapi).toMatch(/^3\./);
     expect(res.body.info.title).toBe("Video Downloader API");
@@ -142,6 +149,7 @@ describe("Video endpoints (e2e)", () => {
 
   beforeAll(async () => {
     process.env.TEMP_DIR = TEMP_DIR;
+    process.env.MAX_CONCURRENT_JOBS_PER_IP = "10";
     const built = await buildApp(true);
     app = built.app;
     prisma = built.prisma;
@@ -440,7 +448,7 @@ describe("Video endpoints (e2e)", () => {
 
   describe("Reliability: orphaned-row prevention on enqueue failure", () => {
     it("marks the job failed rather than leaving it stuck queued if enqueueing fails", async () => {
-      const addSpy = vi.spyOn(queue, "add").mockRejectedValueOnce(new Error("Redis unreachable"));
+      const addSpy = vi.spyOn(Queue.prototype, "add").mockRejectedValueOnce(new Error("Redis unreachable"));
 
       const res = await request(app.getHttpServer())
         .post("/api/video/download")

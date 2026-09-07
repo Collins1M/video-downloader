@@ -23,11 +23,16 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
 
-    if (exception instanceof AppException) {
-      response.status(exception.getStatus()).json({
+    if (exception instanceof AppException || (exception && typeof (exception as any).code === "string")) {
+      const status =
+        exception instanceof AppException
+          ? exception.getStatus()
+          : (exception as any).status || HttpStatus.INTERNAL_SERVER_ERROR;
+
+      response.status(status).json({
         success: false,
-        message: exception.message,
-        code: exception.code,
+        message: (exception as any).message,
+        code: (exception as any).code,
       });
       return;
     }

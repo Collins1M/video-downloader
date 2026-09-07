@@ -1,5 +1,5 @@
 import { Test, TestingModule } from "@nestjs/testing";
-import { INestApplication } from "@nestjs/common";
+import { INestApplication, RequestMethod } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { Logger } from "nestjs-pino";
 import { vi } from "vitest";
@@ -25,7 +25,14 @@ describe("Health endpoint (e2e)", () => {
       .compile();
 
     app = moduleRef.createNestApplication();
-    app.setGlobalPrefix("api", { exclude: ["health", "metrics", "docs", "docs/json"] });
+    app.setGlobalPrefix("api", {
+      exclude: [
+        { path: "health", method: RequestMethod.GET },
+        { path: "metrics", method: RequestMethod.GET },
+        { path: "api-docs", method: RequestMethod.GET },
+        { path: "api-docs/json", method: RequestMethod.GET },
+      ],
+    });
     setupSwagger(app);
     app.use(helmet({ contentSecurityPolicy: false, crossOriginResourcePolicy: { policy: "cross-origin" } }));
     await app.init();
