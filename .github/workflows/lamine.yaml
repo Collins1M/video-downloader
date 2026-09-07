@@ -207,10 +207,14 @@ jobs:
             update_env_val "POSTGRES_DB" "${{ secrets.POSTGRES_DB }}"
             update_env_val "ADMIN_USERNAME" "${{ secrets.ADMIN_USERNAME }}"
             update_env_val "ADMIN_PASSWORD" "${{ secrets.ADMIN_PASSWORD }}"
+            update_env_val "FRONTEND_URL" "${{ secrets.FRONTEND_URL }}"
+            update_env_val "LOG_LEVEL" "${{ secrets.LOG_LEVEL }}"
+            update_env_val "SENTRY_DSN" "${{ secrets.SENTRY_DSN }}"
 
             # Sync DATABASE_URL to use the 'postgres' Docker hostname if secrets are provided.
             if [ -n "${{ secrets.POSTGRES_USER }}" ] && [ -n "${{ secrets.POSTGRESDB_PASSWORD }}" ]; then
-              DB_URL="postgresql://${{ secrets.POSTGRES_USER }}:${{ secrets.POSTGRESDB_PASSWORD }}@postgres:5432/${{ secrets.POSTGRES_DB:-video_downloader}}"
+              PG_DB="${{ secrets.POSTGRES_DB }}"
+              DB_URL="postgresql://${{ secrets.POSTGRES_USER }}:${{ secrets.POSTGRESDB_PASSWORD }}@postgres:5432/${PG_DB:-video_downloader}"
               update_env_val "DATABASE_URL" "$DB_URL"
             fi
 
