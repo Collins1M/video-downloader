@@ -59,7 +59,6 @@ import { AppLoggerModule } from "./common/logging/logger.module";
     MetricsModule,
   ],
   providers: [
-    Reflector,
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard, // applies to every route unless overridden with @SkipThrottle/@Throttle

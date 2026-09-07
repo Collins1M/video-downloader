@@ -129,15 +129,11 @@ describe("Swagger docs (e2e)", () => {
     expect(res.status).toBe(200);
     expect(res.body.openapi).toMatch(/^3\./);
     expect(res.body.info.title).toBe("Video Downloader API");
-    // Spot-check a handful of routes that should be documented,
-    // correctly reflecting the /api prefix applied to real controllers.
     expect(res.body.paths).toHaveProperty(["/api/video/analyze"]);
     expect(res.body.paths).toHaveProperty(["/api/video/download"]);
     expect(res.body.paths).toHaveProperty(["/api/video/jobs/{id}"]);
     expect(res.body.paths).toHaveProperty(["/api/video/jobs/{id}/events"]);
     expect(res.body.paths).toHaveProperty(["/api/admin/stats"]);
-    // /health is intentionally excluded from the /api prefix — confirms
-    // the document reflects the real routing, not a naive assumption.
     expect(res.body.paths).toHaveProperty(["/health"]);
   });
 });
@@ -149,7 +145,7 @@ describe("Video endpoints (e2e)", () => {
 
   beforeAll(async () => {
     process.env.TEMP_DIR = TEMP_DIR;
-    process.env.MAX_CONCURRENT_JOBS_PER_IP = "10";
+    delete process.env.MAX_CONCURRENT_JOBS_PER_IP;
     const built = await buildApp(true);
     app = built.app;
     prisma = built.prisma;
@@ -269,65 +265,6 @@ describe("Video endpoints (e2e)", () => {
         .expect(429);
 
       expect(res.body.code).toBe("RATE_LIMITED");
-    });
-  });
-
-  describe("Rate limiting tiers (Phase 13)", () => {
-    it("does not rate-limit job-status polling at a realistic 1.2s-interval pace", async () => {
-      // Regression test: before the tiers were split, job-status
-      // polling shared the same low bucket as /video/analyze and
-      // /video/download. With the default RATE_LIMIT_PER_MINUTE=10,
-      // the frontend's 1.2s polling interval (~50 req/min) would start
-      // failing with 429s partway through any download longer than
-      // ~12 seconds. The "polling" tier's default of 120/min must
-      // comfortably clear this.
-      //
-      // Deliberately hits a non-existent job id — the throttler guard
-      // runs before the route handler touches the database, so this
-      // exercises the actual regression (rate limiting, not job
-      // lookup) without needing a real DB write first.
-      for (let i = 0; i < 15; i++) {
-        const res = await request(app.getHttpServer())
-          .get("/api/video/jobs/does-not-exist")
-          .set("X-Forwarded-For", "203.0.113.50");
-        expect(res.status).not.toBe(429);
-      }
-    });
-
-    it("still rate-limits /video/download independently at its own (stricter) tier", async () => {
-      const ip = "203.0.113.51";
-      // RATE_LIMIT_DOWNLOAD_PER_MINUTE defaults to 5.
-      for (let i = 0; i < 5; i++) {
-        await request(app.getHttpServer())
-          .post("/api/video/download")
-          .set("X-Forwarded-For", ip)
-          .send({ url: "https://example.com/video", formatId: "1080p-mp4" })
-          .expect(201);
-      }
-
-      await request(app.getHttpServer())
-        .post("/api/video/download")
-        .set("X-Forwarded-For", ip)
-        .send({ url: "https://example.com/video", formatId: "1080p-mp4" })
-        .expect(429);
-    });
-
-    it("hitting the download limit does not affect the analyze (general) tier for the same IP", async () => {
-      const ip = "203.0.113.52";
-      for (let i = 0; i < 5; i++) {
-        await request(app.getHttpServer())
-          .post("/api/video/download")
-          .set("X-Forwarded-For", ip)
-          .send({ url: "https://example.com/video", formatId: "1080p-mp4" });
-      }
-
-      // download tier is now exhausted for this IP, but analyze uses
-      // the separate "general" tier and should be unaffected.
-      await request(app.getHttpServer())
-        .post("/api/video/analyze")
-        .set("X-Forwarded-For", ip)
-        .send({ url: "https://example.com/video" })
-        .expect(201);
     });
   });
 
@@ -459,6 +396,90 @@ describe("Video endpoints (e2e)", () => {
 
       addSpy.mockRestore();
     });
+  });
+});
+
+describe("Rate limiting tiers (e2e)", () => {
+  let app: INestApplication;
+  let prisma: PrismaService;
+  let queue: Queue;
+
+  beforeAll(async () => {
+    process.env.TEMP_DIR = TEMP_DIR;
+    // Set limits explicitly to ensure tests are deterministic
+    process.env.MAX_CONCURRENT_JOBS_PER_IP = "10";
+    process.env.RATE_LIMIT_PER_MINUTE = "10";
+    process.env.RATE_LIMIT_DOWNLOAD_PER_MINUTE = "5";
+    process.env.RATE_LIMIT_POLLING_PER_MINUTE = "120";
+
+    const built = await buildApp(true);
+    app = built.app;
+    prisma = built.prisma;
+    queue = app.get(getQueueToken(VIDEO_PROCESSING_QUEUE));
+  });
+
+  afterEach(async () => {
+    if (prisma) {
+      await prisma.downloadJob.deleteMany({});
+    }
+    if (queue) {
+      await queue.drain();
+    }
+  });
+
+  afterAll(async () => {
+    try {
+      if (app) {
+        await app.close();
+      }
+    } catch (e) {}
+  }, 15000);
+
+  it("does not rate-limit job-status polling at a realistic 1.2s-interval pace", async () => {
+
+    for (let i = 0; i < 15; i++) {
+      const res = await request(app.getHttpServer())
+        .get("/api/video/jobs/does-not-exist")
+        .set("X-Forwarded-For", "203.0.113.50");
+      expect(res.status).not.toBe(429);
+    }
+  });
+
+  it("still rate-limits /video/download independently at its own (stricter) tier", async () => {
+    const ip = "203.0.113.51";
+    // RATE_LIMIT_DOWNLOAD_PER_MINUTE defaults to 5.
+    for (let i = 0; i < 5; i++) {
+      await request(app.getHttpServer())
+        .post("/api/video/download")
+        .set("X-Forwarded-For", ip)
+        .send({ url: "https://example.com/video", formatId: "1080p-mp4" })
+        .expect(201);
+    }
+
+    await request(app.getHttpServer())
+      .post("/api/video/download")
+      .set("X-Forwarded-For", ip)
+      .send({ url: "https://example.com/video", formatId: "1080p-mp4" })
+      .expect(429);
+  });
+
+  it("hitting the download limit does not affect the analyze (general) tier for the same IP", async () => {
+    const ip = "203.0.113.52";
+    for (let i = 0; i < 5; i++) {
+      await request(app.getHttpServer())
+        .post("/api/video/download")
+        .set("X-Forwarded-For", ip)
+        .send({ url: "https://example.com/video", formatId: "1080p-mp4" })
+        .expect(201);
+    }
+
+    // download tier is now exhausted for this IP, but analyze uses
+    // the separate "general" tier and should be unaffected.
+    await request(app.getHttpServer())
+      .post("/api/video/analyze")
+      .set("X-Forwarded-For", ip)
+      .send({ url: "https://example.com/video" })
+      .expect(201);
   });
 });
 
