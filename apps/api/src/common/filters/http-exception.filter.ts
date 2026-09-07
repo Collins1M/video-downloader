@@ -52,7 +52,12 @@ export class AllExceptionsFilter implements ExceptionFilter {
       response.status(status).json({
         success: false,
         message,
-        code: status === HttpStatus.BAD_REQUEST ? "INVALID_URL" : "INTERNAL_ERROR",
+        code:
+          status === HttpStatus.BAD_REQUEST
+            ? "INVALID_URL"
+            : status === HttpStatus.TOO_MANY_REQUESTS
+              ? "RATE_LIMITED"
+              : "INTERNAL_ERROR",
       });
       return;
     }
