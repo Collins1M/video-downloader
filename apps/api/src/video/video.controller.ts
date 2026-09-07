@@ -37,11 +37,11 @@ const CONTENT_TYPES: Record<string, string> = {
 
 @ApiTags("video")
 @Controller("video")
-@SkipThrottle({ general: true, download: true, polling: true }) // opt in per route below — no route is throttled by accident, none is un-throttled by accident either
 export class VideoController {
   constructor(private readonly videoService: VideoService) {}
 
   @Post("analyze")
+  @SkipThrottle({ download: true, polling: true })
   @Throttle({ general: {} })
   @ApiOperation({
     summary: "Analyze a video URL and list its downloadable formats",
@@ -59,6 +59,7 @@ export class VideoController {
   }
 
   @Post("download")
+  @SkipThrottle({ general: true, polling: true })
   @Throttle({ download: {} })
   @UseGuards(ConcurrentJobsGuard)
   @ApiOperation({
@@ -84,6 +85,7 @@ export class VideoController {
   }
 
   @Get("jobs/:id")
+  @SkipThrottle({ general: true, download: true })
   @Throttle({ polling: {} })
   @ApiOperation({ summary: "Get a download job's current status" })
   @ApiParam({ name: "id", description: "The job id returned by POST /video/download." })
@@ -95,6 +97,7 @@ export class VideoController {
   }
 
   @Delete("jobs/:id")
+  @SkipThrottle({ general: true, download: true })
   @Throttle({ polling: {} })
   @ApiOperation({ summary: "Cancel an in-progress download job" })
   @ApiParam({ name: "id", description: "The job id to cancel." })
@@ -112,6 +115,7 @@ export class VideoController {
    */
   @Get("jobs/:id/events")
   @Sse()
+  @SkipThrottle({ general: true, download: true })
   @Throttle({ polling: {} })
   @UseGuards(JobExistsGuard)
   @ApiOperation({
@@ -135,6 +139,7 @@ export class VideoController {
    * or not — so nothing lingers beyond the download itself (Section 9).
    */
   @Get("jobs/:id/file")
+  @SkipThrottle({ download: true, polling: true })
   @Throttle({ general: {} })
   @ApiOperation({
     summary: "Download a completed job's output file",

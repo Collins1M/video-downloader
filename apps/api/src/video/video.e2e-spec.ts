@@ -69,7 +69,7 @@ async function buildApp(overrideUrlValidator: boolean): Promise<{ app: INestAppl
   const moduleRef: TestingModule = await builder.compile();
 
   const app = moduleRef.createNestApplication<NestExpressApplication>();
-  app.set("trust proxy", 1);
+  app.set("trust proxy", true);
   app.use(helmet({ contentSecurityPolicy: false, crossOriginResourcePolicy: { policy: "cross-origin" } }));
   app.setGlobalPrefix("api", {
     exclude: [
@@ -101,6 +101,10 @@ describe("Swagger docs (e2e)", () => {
   let app: INestApplication;
 
   beforeAll(async () => {
+    // Disable rate limiting for generic tests
+    process.env.RATE_LIMIT_PER_MINUTE = "1000";
+    process.env.RATE_LIMIT_DOWNLOAD_PER_MINUTE = "1000";
+    process.env.RATE_LIMIT_POLLING_PER_MINUTE = "1000";
     const built = await buildApp(true);
     app = built.app;
   });
@@ -145,7 +149,12 @@ describe("Video endpoints (e2e)", () => {
 
   beforeAll(async () => {
     process.env.TEMP_DIR = TEMP_DIR;
-    delete process.env.MAX_CONCURRENT_JOBS_PER_IP;
+    // Set limits high to prevent interference, except for concurrency test
+    process.env.MAX_CONCURRENT_JOBS_PER_IP = "2";
+    process.env.RATE_LIMIT_PER_MINUTE = "1000";
+    process.env.RATE_LIMIT_DOWNLOAD_PER_MINUTE = "1000";
+    process.env.RATE_LIMIT_POLLING_PER_MINUTE = "1000";
+
     const built = await buildApp(true);
     app = built.app;
     prisma = built.prisma;
@@ -153,11 +162,15 @@ describe("Video endpoints (e2e)", () => {
   });
 
   afterEach(async () => {
-    if (prisma) {
-      await prisma.downloadJob.deleteMany({});
-    }
+    try {
+      if (prisma) {
+        await prisma.downloadJob.deleteMany({}).catch(() => {});
+      }
+    } catch (e) {}
     if (queue) {
-      await queue.drain();
+      try {
+        await queue.drain().catch(() => {});
+      } catch (e) {}
     }
   });
 
@@ -419,11 +432,15 @@ describe("Rate limiting tiers (e2e)", () => {
   });
 
   afterEach(async () => {
-    if (prisma) {
-      await prisma.downloadJob.deleteMany({});
-    }
+    try {
+      if (prisma) {
+        await prisma.downloadJob.deleteMany({}).catch(() => {});
+      }
+    } catch (e) {}
     if (queue) {
-      await queue.drain();
+      try {
+        await queue.drain().catch(() => {});
+      } catch (e) {}
     }
   });
 
@@ -447,7 +464,8 @@ describe("Rate limiting tiers (e2e)", () => {
 
   it("still rate-limits /video/download independently at its own (stricter) tier", async () => {
     const ip = "203.0.113.51";
-    // RATE_LIMIT_DOWNLOAD_PER_MINUTE defaults to 5.
+    // RATE_LIMIT_DOWNLOAD_PER_MINUTE is set to 5 in beforeAll.
+    // The 6th request should hit the limit.
     for (let i = 0; i < 5; i++) {
       await request(app.getHttpServer())
         .post("/api/video/download")
@@ -456,11 +474,13 @@ describe("Rate limiting tiers (e2e)", () => {
         .expect(201);
     }
 
-    await request(app.getHttpServer())
+    const res = await request(app.getHttpServer())
       .post("/api/video/download")
       .set("X-Forwarded-For", ip)
       .send({ url: "https://example.com/video", formatId: "1080p-mp4" })
       .expect(429);
+
+    expect(res.body.code).toBe("RATE_LIMITED");
   });
 
   it("hitting the download limit does not affect the analyze (general) tier for the same IP", async () => {
@@ -488,15 +508,20 @@ describe("SSRF protection (e2e, real validator — no override)", () => {
   let prisma: PrismaService;
 
   beforeAll(async () => {
+    process.env.RATE_LIMIT_PER_MINUTE = "1000";
+    process.env.RATE_LIMIT_DOWNLOAD_PER_MINUTE = "1000";
+    process.env.RATE_LIMIT_POLLING_PER_MINUTE = "1000";
     const built = await buildApp(false);
     app = built.app;
     prisma = built.prisma;
   });
 
   afterEach(async () => {
-    if (prisma) {
-      await prisma.downloadJob.deleteMany({});
-    }
+    try {
+      if (prisma) {
+        await prisma.downloadJob.deleteMany({});
+      }
+    } catch (e) {}
   });
 
   afterAll(async () => {
