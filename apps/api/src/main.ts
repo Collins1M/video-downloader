@@ -66,13 +66,13 @@ async function bootstrap() {
 
   app.useGlobalFilters(new AllExceptionsFilter());
 
-  // Restrict to the known frontend origin rather than reflecting any
-  // Origin header — an open CORS policy on a service that fetches
-  // arbitrary URLs and streams files back is an easy abuse vector.
-  // credentials: true is required for the session_id cookie to round-trip
-  // cross-origin (frontend and API run on different ports in local dev).
-  const allowedOrigin = process.env.FRONTEND_URL ?? "http://localhost:3000";
-  app.enableCors({ origin: allowedOrigin, credentials: true });
+  const frontendUrl = process.env.FRONTEND_URL;
+  const origins = frontendUrl ? frontendUrl.split(",") : ["http://localhost:3000"];
+
+  app.enableCors({
+    origin: origins,
+    credentials: true,
+  });
 
   const port = process.env.PORT ? Number(process.env.PORT) : 4000;
   await app.listen(port);
