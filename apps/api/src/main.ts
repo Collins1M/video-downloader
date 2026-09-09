@@ -67,7 +67,16 @@ async function bootstrap() {
   app.useGlobalFilters(new AllExceptionsFilter());
 
   const frontendUrl = process.env.FRONTEND_URL;
-  const origins = frontendUrl ? frontendUrl.split(",") : ["http://localhost:3000"];
+  const origins = frontendUrl
+    ? frontendUrl.split(",")
+    : ["http://localhost:3000", "https://video.fplstocks.com"];
+
+  app.enableCors({
+    origin: origins,
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Request-Id"],
+  });
 
   app.enableCors({
     origin: origins,
