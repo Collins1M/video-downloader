@@ -107,12 +107,7 @@ export class VideoController {
     return this.videoService.cancelJob(id);
   }
 
-  /**
-   * Live progress as Server-Sent Events, replacing client-side polling
-   * (Phase 14, item 19). Existence is checked in JobExistsGuard rather
-   * than inside this handler — see the guard's docstring for why that
-   * split matters for @Sse() specifically.
-   */
+
   @Get("jobs/:id/events")
   @Sse()
   @SkipThrottle({ general: true, download: true })
@@ -133,11 +128,7 @@ export class VideoController {
     return this.videoService.streamJobEvents(id);
   }
 
-  /**
-   * Streams a completed job's output straight to the browser (Section 8)
-   * and deletes the temp file once the response finishes — successfully
-   * or not — so nothing lingers beyond the download itself (Section 9).
-   */
+
   @Get("jobs/:id/file")
   @SkipThrottle({ download: true, polling: true })
   @Throttle({ general: {} })

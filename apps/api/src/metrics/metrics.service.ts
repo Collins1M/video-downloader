@@ -21,12 +21,6 @@ export class MetricsService {
     registers: [this.registry],
   });
 
-  // Gauges refreshed at scrape time (see refreshJobGauges) rather than
-  // incremented in-process — job completion happens in apps/worker, a
-  // separate process, so "increment a counter when a job finishes"
-  // isn't available here. Querying Postgres fresh on each scrape (same
-  // pattern as AdminService's stats) is the standard, correct way to
-  // expose state owned by another process.
   private readonly jobsByStatus = new client.Gauge({
     name: "download_jobs_by_status",
     help: "Current number of DownloadJob rows in each status",
@@ -48,10 +42,7 @@ export class MetricsService {
 
   async getMetrics(): Promise<string> {
     await this.refreshJobGauges().catch(() => {
-      // If Postgres is unreachable, still return the HTTP/process
-      // metrics that don't depend on it rather than failing the whole
-      // scrape — a DB outage shouldn't blind an operator to the rest
-      // of the system's health too.
+
     });
     return this.registry.metrics();
   }

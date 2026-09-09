@@ -12,12 +12,9 @@ export class MetricsInterceptor implements NestInterceptor {
     const response = context.switchToHttp().getResponse<Response>();
     const start = process.hrtime.bigint();
 
-    // route.path (e.g. "/video/jobs/:id") rather than the raw URL, so a
-    // thousand distinct job ids don't become a thousand distinct
-    // Prometheus label combinations (a classic cardinality footgun).
     const route = request.route?.path ?? request.path;
 
-    const record = () => {
+    const record = (): void => {
       const durationSeconds = Number(process.hrtime.bigint() - start) / 1e9;
       const labels = { method: request.method, route, status_code: String(response.statusCode) };
       this.metrics.httpRequestsTotal.inc(labels);

@@ -10,9 +10,7 @@ export class HealthController {
   @Get()
   async check(): Promise<{ status: "ok"; database: "ok" }> {
     try {
-      // A real query, not just "is the process alive" — catches a
-      // dead/unreachable Postgres even though the Node process itself
-      // is still running.
+
       await this.prisma.$queryRaw`SELECT 1`;
     } catch {
       throw new ServiceUnavailableException("Database is unreachable.");

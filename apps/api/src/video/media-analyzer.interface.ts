@@ -1,12 +1,7 @@
 import { Injectable, NotImplementedException } from "@nestjs/common";
 import type { AnalyzeResponse } from "@video-downloader/types";
 
-/**
- * Abstraction over "figure out what a URL is and what formats we can
- * offer for it." VideoService depends on this interface, not a concrete
- * implementation, so the real extractor (YtDlpMediaAnalyzer, Phase 6)
- * can be swapped in without touching the controller or route contracts.
- */
+
 export abstract class MediaAnalyzer {
   abstract analyze(url: string, timeoutMs?: number): Promise<AnalyzeResponse>;
 }

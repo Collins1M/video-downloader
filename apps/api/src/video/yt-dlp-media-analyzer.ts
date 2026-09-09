@@ -28,8 +28,6 @@ export class YtDlpMediaAnalyzer implements MediaAnalyzer {
       const { response } = await analyzeUrl(url, { timeoutMs, cookiesPath });
       return response;
     } catch (err) {
-      // Log the real detail server-side; the client only ever gets the
-      // pre-written friendly message on each error class (Section 18).
       this.logger.warn(
         `analyze failed: ${err instanceof Error ? err.message : String(err)}` +
           ((err as { detail?: string })?.detail ? ` — ${(err as { detail?: string }).detail}` : ""),

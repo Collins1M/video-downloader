@@ -11,18 +11,6 @@ export interface JobEventPayload {
   error?: string;
 }
 
-/**
- * Wraps a single BullMQ QueueEvents connection (its own dedicated Redis
- * subscriber, per BullMQ's requirements — this is distinct from the
- * BullModule-managed connection used for enqueueing) and fans out
- * per-jobId progress/completed/failed notifications as RxJS Observables.
- *
- * One QueueEvents instance is shared for the whole process rather than
- * one per open SSE connection: BullMQ's Redis pub/sub subscription is
- * already global to the queue, so instantiating QueueEvents per-request
- * would open one extra Redis connection per concurrent SSE stream for no
- * benefit — we just filter the shared event stream by jobId per listener.
- */
 @Injectable()
 export class QueueEventsService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(QueueEventsService.name);
@@ -33,20 +21,11 @@ export class QueueEventsService implements OnModuleInit, OnModuleDestroy {
   onModuleInit() {
     this.queueEvents = new QueueEvents(VIDEO_PROCESSING_QUEUE, {
       connection: {
-        // QueueEvents needs its own ioredis-compatible connection options
-        // (not a shared client instance) so it can run in subscriber mode
-        // independently of the producer connection in QueueConnectionModule.
         maxRetriesPerRequest: null,
-        // Rebuilt from the same REDIS_URL as the producer connection —
-        // ioredis accepts either a URL string or an options object, but
-        // BullMQ's QueueEvents constructor here expects options, so we
-        // parse it once at startup.
         ...parseRedisUrl(this.config.getOrThrow<string>("REDIS_URL")),
       },
     });
 
-    // Increase limit to prevent MaxListenersExceededWarning under load.
-    // Each concurrent SSE stream adds 3 listeners (progress, completed, failed).
     this.queueEvents.setMaxListeners(500);
 
     this.queueEvents.on("error", (err) =>
@@ -58,13 +37,7 @@ export class QueueEventsService implements OnModuleInit, OnModuleDestroy {
     await this.queueEvents.close();
   }
 
-  /**
-   * Emits one JobEventPayload per progress update and exactly one
-   * terminal payload (completed/failed), then completes the Observable.
-   * `initial` is emitted synchronously first so a client that connects
-   * after the job already has a status doesn't wait for the next Redis
-   * event to see anything.
-   */
+
   streamJobEvents(jobId: string, initial: JobEventPayload): Observable<MessageEvent> {
     return new Observable<MessageEvent>((subscriber) => {
       let lastPayload = initial;
@@ -105,8 +78,6 @@ export class QueueEventsService implements OnModuleInit, OnModuleDestroy {
       this.queueEvents.on("failed", onFailed);
 
       const heartbeatInterval = setInterval(() => {
-        // Periodic heartbeat to prevent proxy timeouts (Nginx/Cloudflare)
-        // during long extraction phases with no progress updates.
         subscriber.next({ data: lastPayload });
       }, 15000);
 

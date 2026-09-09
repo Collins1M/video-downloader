@@ -37,9 +37,6 @@ export class VideoService {
   ) {}
 
   async analyze(url: string): Promise<AnalyzeResponse> {
-    // Section 13: reject non-http(s) schemes, private/loopback/link-local
-    // targets, and hostnames that resolve to them, before anything ever
-    // touches the URL.
     await this.urlValidator.validate(url);
 
     const timeoutMs = Number(this.config.get("ANALYZE_TIMEOUT_MS") ?? 60_000);
@@ -74,16 +71,6 @@ export class VideoService {
     const backoffMs = Number(this.config.get("JOB_RETRY_BACKOFF_MS") ?? 15_000);
 
     try {
-      // jobId is pinned to the DownloadJob row id so the worker never
-      // has to look anything up beyond the id it already receives — one
-      // id, one source of truth, in both BullMQ and Postgres. requestId
-      // threads the originating HTTP request's correlation id through
-      // to the worker's logs (Phase 12).
-      //
-      // Wrapped in a timeout: BullMQ's recommended Redis client config
-      // (maxRetriesPerRequest: null) means a Redis outage would
-      // otherwise make this call — and the whole request — hang
-      // indefinitely instead of failing with a clear error.
       await withTimeout(
         this.queue.add(
           "process",
@@ -94,11 +81,6 @@ export class VideoService {
         "enqueue download job",
       );
     } catch (err) {
-      // The DB row already exists but nothing will ever process it —
-      // that's an orphaned "queued forever" job, not a graceful
-      // failure. Mark it failed immediately rather than let the user
-      // (and the abandoned-job cleanup sweep, much later) discover it
-      // the hard way.
       await this.prisma.downloadJob
         .update({
           where: { id: job.id },
@@ -109,7 +91,6 @@ export class VideoService {
           },
         })
         .catch(() => {
-          /* best-effort — if this also fails, the DB itself is the problem, not just the queue */
         });
 
       throw new ProcessingFailedException();
@@ -138,7 +119,6 @@ export class VideoService {
       throw new JobNotFoundException();
     }
 
-    // Already terminal — nothing to cancel, just report current state.
     if (job.status === "completed" || job.status === "failed" || job.status === "cancelled") {
       return {
         id: job.id,
@@ -153,10 +133,6 @@ export class VideoService {
       data: { status: "cancelled" },
     });
 
-    // Best-effort: pull it out of the queue if it hasn't started yet.
-    // If it's already active, the worker itself must notice the
-    // "cancelled" status mid-run and stop — that cooperative check
-    // lands with the real processing loop in Phase 6.
     const bullJob = await this.queue.getJob(id);
     if (bullJob) {
       const state = await bullJob.getState();
@@ -173,14 +149,6 @@ export class VideoService {
     };
   }
 
-  /**
-   * Live progress for a job as Server-Sent Events (Phase 14, item 19).
-   * Existence is already verified by JobExistsGuard before this runs, so
-   * this only needs the job's current row to seed the first event —
-   * the guard's own lookup isn't reused here since a guard and a handler
-   * don't share request-scoped state by default in this module's setup,
-   * and a second read is cheap next to holding an SSE connection open.
-   */
   async streamJobEvents(id: string): Promise<Observable<MessageEvent>> {
     const job = await this.prisma.downloadJob.findUnique({ where: { id } });
     if (!job) {
@@ -195,13 +163,7 @@ export class VideoService {
     });
   }
 
-  /**
-   * Resolves the completed output file for a job (Section 8: the API is
-   * what actually owns the browser's HTTP connection, so it — not the
-   * worker — streams the final bytes). Deterministic path: both the
-   * worker (writing it) and the API (reading it) derive the same path
-   * from jobId + formatId, no extra state needed.
-   */
+
   async getJobFilePath(id: string): Promise<{ path: string; filename: string }> {
     const job = await this.prisma.downloadJob.findUnique({ where: { id } });
     if (!job) {
@@ -219,9 +181,6 @@ export class VideoService {
     try {
       await fs.access(path);
     } catch {
-      // Completed in the DB but the file's gone — TTL cleanup already
-      // ran, or the worker's disk was reset. Same user-facing outcome
-      // either way: the download is no longer available.
       throw new FileExpiredException();
     }
 

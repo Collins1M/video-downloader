@@ -1,19 +1,3 @@
-/**
- * Integration tests against a real bootstrapped Nest app, real Postgres,
- * and real Redis (BullMQ). This sandbox cannot run these — no network
- * access to Prisma's engine binary CDN means `prisma generate` fails
- * here (see repo READMEs for the recurring caveat), so there is no
- * working PrismaClient to connect with. These run in CI
- * (.github/workflows/lamine.yaml's `test` job), which has full internet
- * access and real Postgres/Redis service containers.
- *
- * MediaAnalyzer is overridden with a stub so these tests don't depend
- * on yt-dlp or real external network access — extraction logic itself
- * is covered separately in packages/media-extractor's unit tests.
- * UrlValidatorService is overridden for most tests (deterministic, no
- * real DNS) except the dedicated SSRF-integration test at the bottom,
- * which deliberately uses the real validator end-to-end.
- */
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -89,19 +73,11 @@ async function buildApp(overrideUrlValidator: boolean): Promise<{ app: INestAppl
   return { app, prisma: moduleRef.get(PrismaService) };
 }
 
-/**
- * Empirical check that the Swagger doc is reachable at the path
- * setupSwagger claims (Phase 14, item 22) — the same "verify, don't
- * assume" lesson as the Phase 12 /metrics prefix-exclusion bug. This
- * was in fact run against a live server in this sandbox (not just
- * asserted via supertest) to confirm the real route before writing this
- * test — see docs/API.md's Swagger section for that empirical trace.
- */
+
 describe("Swagger docs (e2e)", () => {
   let app: INestApplication;
 
   beforeAll(async () => {
-    // Disable rate limiting for generic tests
     process.env.RATE_LIMIT_PER_MINUTE = "1000";
     process.env.RATE_LIMIT_DOWNLOAD_PER_MINUTE = "1000";
     process.env.RATE_LIMIT_POLLING_PER_MINUTE = "1000";
@@ -149,7 +125,6 @@ describe("Video endpoints (e2e)", () => {
 
   beforeAll(async () => {
     process.env.TEMP_DIR = TEMP_DIR;
-    // Set limits high to prevent interference, except for concurrency test
     process.env.MAX_CONCURRENT_JOBS_PER_IP = "2";
     process.env.RATE_LIMIT_PER_MINUTE = "1000";
     process.env.RATE_LIMIT_DOWNLOAD_PER_MINUTE = "1000";
@@ -261,8 +236,6 @@ describe("Video endpoints (e2e)", () => {
 
     it("enforces the per-IP concurrent job limit", async () => {
       const ip = "203.0.113.9";
-      // MAX_CONCURRENT_JOBS_PER_IP defaults to 2 — the third request from
-      // the same simulated IP should be rejected.
       for (let i = 0; i < 2; i++) {
         await request(app.getHttpServer())
           .post("/api/video/download")
@@ -419,7 +392,6 @@ describe("Rate limiting tiers (e2e)", () => {
 
   beforeAll(async () => {
     process.env.TEMP_DIR = TEMP_DIR;
-    // Set limits explicitly to ensure tests are deterministic
     process.env.MAX_CONCURRENT_JOBS_PER_IP = "10";
     process.env.RATE_LIMIT_PER_MINUTE = "10";
     process.env.RATE_LIMIT_DOWNLOAD_PER_MINUTE = "5";
@@ -464,8 +436,6 @@ describe("Rate limiting tiers (e2e)", () => {
 
   it("still rate-limits /video/download independently at its own (stricter) tier", async () => {
     const ip = "203.0.113.51";
-    // RATE_LIMIT_DOWNLOAD_PER_MINUTE is set to 5 in beforeAll.
-    // The 6th request should hit the limit.
     for (let i = 0; i < 5; i++) {
       await request(app.getHttpServer())
         .post("/api/video/download")
@@ -493,8 +463,6 @@ describe("Rate limiting tiers (e2e)", () => {
         .expect(201);
     }
 
-    // download tier is now exhausted for this IP, but analyze uses
-    // the separate "general" tier and should be unaffected.
     await request(app.getHttpServer())
       .post("/api/video/analyze")
       .set("X-Forwarded-For", ip)

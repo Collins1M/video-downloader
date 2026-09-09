@@ -3,14 +3,10 @@ import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-/**
- * The path Swagger UI/JSON is served at.
- */
+
 export const SWAGGER_PATH = "api-docs";
 
-/**
- * Wires SwaggerModule into an already-constructed Nest app.
- */
+
 export function setupSwagger(app: INestApplication): void {
   const config = new DocumentBuilder()
     .setTitle("Video Downloader API")
@@ -26,7 +22,6 @@ export function setupSwagger(app: INestApplication): void {
 
   const document = SwaggerModule.createDocument(app, config);
 
-  // Generate static OpenAPI file for external tooling/reference
   if (process.env.NODE_ENV !== "production") {
     const outputPath = join(process.cwd(), "openapi.json");
     writeFileSync(outputPath, JSON.stringify(document, null, 2), "utf8");

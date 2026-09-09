@@ -12,9 +12,7 @@ export class CreateDownloadRequestDto {
   @MaxLength(2048)
   url!: string;
 
-  // Restrictive on purpose: this value may end up embedded in a temp
-  // file path or FFmpeg argument list downstream (Phase 6), so it's
-  // constrained to a safe charset here rather than sanitized later.
+
   @ApiProperty({
     description: "The id of one of the formats returned by POST /video/analyze.",
     example: "1080p-mp4",

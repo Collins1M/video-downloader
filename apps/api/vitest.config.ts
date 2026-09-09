@@ -5,7 +5,6 @@ import swc from "unplugin-swc";
 export default defineConfig({
   plugins: [
     tsconfigPaths(),
-    // SWC plugin is required to support NestJS decorators and metadata in Vitest
     swc.vite({
       module: { type: "es6" },
     }),

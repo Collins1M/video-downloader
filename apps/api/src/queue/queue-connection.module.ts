@@ -11,12 +11,8 @@ const logger = new Logger("RedisConnection");
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
-        // Constructed explicitly (rather than passing a plain config
-        // object) so we can attach observability — a Redis outage
-        // should be visible in logs, not silent while ioredis retries
-        // in the background.
+
         const connection = new IORedis(config.getOrThrow<string>("REDIS_URL"), {
-          maxRetriesPerRequest: null, // required by BullMQ for its blocking commands
           retryStrategy: (attempt: number) => Math.min(attempt * 500, 5000),
         });
 
