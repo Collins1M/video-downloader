@@ -6,7 +6,7 @@ import { FormatNotFoundError } from "./errors";
 // reports. Keeping this a fixed, small set (rather than exposing every
 // raw format) is what Section 6 shows in the UI mockup and keeps the
 // formatId space small and predictable between analyze and download.
-const VIDEO_HEIGHT_TIERS = [1080, 720, 480, 360];
+const VIDEO_HEIGHT_TIERS = [2160, 1080, 720, 480, 360, 240, 144];
 const AUDIO_BITRATE_TIERS = [320, 192, 128];
 
 export interface ResolvedVideoTarget {
@@ -46,7 +46,15 @@ function bestAudioFormat(formats: YtDlpFormat[]): YtDlpFormat | undefined {
 }
 
 function bestVideoFormatForHeight(formats: YtDlpFormat[], height: number): YtDlpFormat | undefined {
-  const candidates = formats.filter((f) => f.vcodec && f.vcodec !== "none" && f.height === height);
+  // Check both height and width for resolution matching to support vertical videos
+  // (e.g. 1080x1920 vs 1920x1080).
+  const candidates = formats.filter((f) => {
+    if (!f.vcodec || f.vcodec === "none") return false;
+    const actualHeight = f.height ?? 0;
+    const actualWidth = (f as any).width ?? 0;
+    return actualHeight === height || actualWidth === height;
+  });
+
   if (candidates.length === 0) return undefined;
   // Prefer widely-compatible codecs, then higher bitrate.
   return candidates.reduce((best, f) => {

@@ -23,16 +23,29 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
 
+    const request = ctx.getRequest<Request & { id?: string }>();
+
     if (exception instanceof AppException || (exception && typeof (exception as any).code === "string")) {
       const status =
         exception instanceof AppException
           ? exception.getStatus()
           : (exception as any).status || HttpStatus.INTERNAL_SERVER_ERROR;
 
+      const code = (exception as any).code;
+      const message = (exception as any).message;
+
+      this.logger.warn({
+        msg: `App error: ${code}`,
+        detail: message,
+        path: request.url,
+        method: request.method,
+        requestId: request.id,
+      });
+
       response.status(status).json({
         success: false,
-        message: (exception as any).message,
-        code: (exception as any).code,
+        message,
+        code,
       });
       return;
     }
@@ -48,6 +61,14 @@ export class AllExceptionsFilter implements ExceptionFilter {
           : Array.isArray((body as any)?.message)
             ? (body as any).message.join(" ")
             : ((body as any)?.message ?? "Request could not be processed.");
+
+      this.logger.warn({
+        msg: `HTTP error: ${status}`,
+        detail: message,
+        path: request.url,
+        method: request.method,
+        requestId: request.id,
+      });
 
       response.status(status).json({
         success: false,
@@ -66,8 +87,13 @@ export class AllExceptionsFilter implements ExceptionFilter {
     // user nothing but a generic message. Worth alerting on (unlike
     // AppExceptions above, which are expected, user-facing outcomes) —
     // this branch means something we didn't anticipate broke.
-    const request = ctx.getRequest<Request & { id?: string }>();
-    this.logger.error(exception instanceof Error ? exception.stack : exception);
+    this.logger.error({
+      msg: exception instanceof Error ? exception.message : "Unexpected error",
+      stack: exception instanceof Error ? exception.stack : undefined,
+      path: request.url,
+      method: request.method,
+      requestId: request.id,
+    });
     captureUnexpectedError(exception, { requestId: request.id, path: request.path });
 
     response.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
