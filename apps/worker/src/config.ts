@@ -8,6 +8,7 @@ export interface WorkerConfig {
   tempDir: string;
   metricsPort: number;
   analyzeTimeoutMs: number;
+  ytDlpCookies?: string;
 }
 
 export function loadWorkerConfig(): WorkerConfig {
@@ -31,5 +32,6 @@ export function loadWorkerConfig(): WorkerConfig {
     tempDir: process.env.TEMP_DIR ?? "/var/tmp/video-downloader",
     metricsPort: Number(process.env.METRICS_PORT ?? 9091),
     analyzeTimeoutMs: Number(process.env.ANALYZE_TIMEOUT_MS ?? 60_000),
+    ytDlpCookies: process.env.YT_DLP_COOKIES,
   };
 }

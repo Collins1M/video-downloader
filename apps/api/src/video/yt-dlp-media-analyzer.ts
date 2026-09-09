@@ -1,4 +1,5 @@
 import { Injectable, Logger } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import type { AnalyzeResponse } from "@video-downloader/types";
 import {
   analyzeUrl,
@@ -19,9 +20,12 @@ import {
 export class YtDlpMediaAnalyzer implements MediaAnalyzer {
   private readonly logger = new Logger("YtDlpMediaAnalyzer");
 
+  constructor(private readonly config: ConfigService) {}
+
   async analyze(url: string, timeoutMs?: number): Promise<AnalyzeResponse> {
     try {
-      const { response } = await analyzeUrl(url, { timeoutMs });
+      const cookiesPath = this.config.get<string>("YT_DLP_COOKIES");
+      const { response } = await analyzeUrl(url, { timeoutMs, cookiesPath });
       return response;
     } catch (err) {
       // Log the real detail server-side; the client only ever gets the

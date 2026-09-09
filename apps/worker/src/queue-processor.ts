@@ -65,7 +65,7 @@ export async function processVideoJob(job: Job<VideoProcessingJobData>): Promise
     // then can resolve to a private IP now (DNS rebinding TOCTOU).
     await validateUrl(dbJob.sourceUrl);
 
-    const info = await fetchYtDlpInfo(dbJob.sourceUrl, EXTRACT_TIMEOUT_MS);
+    const info = await fetchYtDlpInfo(dbJob.sourceUrl, EXTRACT_TIMEOUT_MS, config.ytDlpCookies);
     const target = resolveFormatTarget(info, dbJob.format);
     await setProgress(10);
 
@@ -77,13 +77,13 @@ export async function processVideoJob(job: Job<VideoProcessingJobData>): Promise
     if (target.kind === "video") {
       const videoTmp = safeTempFilePath(config.tempDir, downloadJobId, "video.tmp");
       intermediates.push(videoTmp);
-      await fetchYtDlpFormat(dbJob.sourceUrl, target.videoFormatId, videoTmp, FETCH_TIMEOUT_MS);
+      await fetchYtDlpFormat(dbJob.sourceUrl, target.videoFormatId, videoTmp, FETCH_TIMEOUT_MS, config.ytDlpCookies);
       await setProgress(40);
 
       if (target.audioFormatId) {
         const audioTmp = safeTempFilePath(config.tempDir, downloadJobId, "audio.tmp");
         intermediates.push(audioTmp);
-        await fetchYtDlpFormat(dbJob.sourceUrl, target.audioFormatId, audioTmp, FETCH_TIMEOUT_MS);
+        await fetchYtDlpFormat(dbJob.sourceUrl, target.audioFormatId, audioTmp, FETCH_TIMEOUT_MS, config.ytDlpCookies);
         await setProgress(60);
 
         await mergeVideoAudio(videoTmp, audioTmp, outputPath, info.duration, (p) =>
@@ -97,7 +97,7 @@ export async function processVideoJob(job: Job<VideoProcessingJobData>): Promise
     } else {
       const audioTmp = safeTempFilePath(config.tempDir, downloadJobId, "audio.tmp");
       intermediates.push(audioTmp);
-      await fetchYtDlpFormat(dbJob.sourceUrl, target.audioFormatId, audioTmp, FETCH_TIMEOUT_MS);
+      await fetchYtDlpFormat(dbJob.sourceUrl, target.audioFormatId, audioTmp, FETCH_TIMEOUT_MS, config.ytDlpCookies);
       await setProgress(50);
 
       await extractAudioToMp3(audioTmp, outputPath, target.bitrateKbps, info.duration, (p) =>

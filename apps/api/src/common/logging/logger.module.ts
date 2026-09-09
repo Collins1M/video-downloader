@@ -11,7 +11,9 @@ const isTest = process.env.NODE_ENV === "test";
     LoggerModule.forRoot({
       pinoHttp: {
         level: process.env.LOG_LEVEL ?? (isTest ? "silent" : "info"),
-        transport: !isProd && !isTest ? { target: "pino-pretty", options: { colorize: true, translateTime: "SYS:standard" } } : undefined,
+        transport: process.env.LOG_FORMAT === "pretty" || (!isProd && !isTest)
+          ? { target: "pino-pretty", options: { colorize: true, translateTime: "SYS:standard" } }
+          : undefined,
         base: { service: "api" },
         genReqId: (req: IncomingMessage, res: ServerResponse) => {
           const existing = req.headers["x-request-id"];

@@ -23,9 +23,13 @@ services:
       JOB_RETRY_BACKOFF_MS: ${JOB_RETRY_BACKOFF_MS:-15000}
       TEMP_FILE_TTL_MINUTES: ${TEMP_FILE_TTL_MINUTES:-30}
       LOG_LEVEL: ${LOG_LEVEL:-info}
+      LOG_FORMAT: ${LOG_FORMAT:-json}
+      YT_DLP_COOKIES: ${YT_DLP_COOKIES:-}
       SENTRY_DSN: ${SENTRY_DSN:-}
     volumes:
       - temp_processing:${TEMP_DIR:-/var/tmp/video-downloader}
+      # If you use YT_DLP_COOKIES, mount your cookies.txt here:
+      # - ./cookies.txt:/app/cookies.txt:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -58,10 +62,14 @@ services:
       MAX_PROCESSING_TIME_SECONDS: ${MAX_PROCESSING_TIME_SECONDS:-900}
       TEMP_FILE_TTL_MINUTES: ${TEMP_FILE_TTL_MINUTES:-30}
       LOG_LEVEL: ${LOG_LEVEL:-info}
+      LOG_FORMAT: ${LOG_FORMAT:-json}
+      YT_DLP_COOKIES: ${YT_DLP_COOKIES:-}
       SENTRY_DSN: ${SENTRY_DSN:-}
       METRICS_PORT: ${METRICS_PORT:-9091}
     volumes:
       - temp_processing:${TEMP_DIR:-/var/tmp/video-downloader}
+      # If you use YT_DLP_COOKIES, mount your cookies.txt here:
+      # - ./cookies.txt:/app/cookies.txt:ro
     depends_on:
       postgres:
         condition: service_healthy

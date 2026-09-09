@@ -11,6 +11,8 @@ export interface RunYtDlpOptions {
   timeoutMs: number;
   /** Cap on stdout/stderr buffered in memory. */
   maxBufferBytes?: number;
+  /** Path to a cookies.txt file for authentication (Phase 15: bot bypass). */
+  cookiesPath?: string;
 }
 
 /**
@@ -22,10 +24,15 @@ export interface RunYtDlpOptions {
  * become arbitrary shell/FFmpeg commands").
  */
 export function runYtDlp(args: string[], options: RunYtDlpOptions): Promise<string> {
+  const finalArgs = [...args];
+  if (options.cookiesPath) {
+    finalArgs.unshift("--cookies", options.cookiesPath);
+  }
+
   return new Promise((resolvePromise, reject) => {
     execFile(
       "yt-dlp",
-      args,
+      finalArgs,
       {
         timeout: options.timeoutMs,
         maxBuffer: options.maxBufferBytes ?? 20 * 1024 * 1024,
@@ -64,10 +71,14 @@ export function runYtDlp(args: string[], options: RunYtDlpOptions): Promise<stri
 }
 
 /** Fetches full metadata + format list for a URL as parsed JSON. */
-export async function fetchYtDlpInfo(url: string, timeoutMs: number): Promise<YtDlpInfo> {
+export async function fetchYtDlpInfo(
+  url: string,
+  timeoutMs: number,
+  cookiesPath?: string,
+): Promise<YtDlpInfo> {
   const stdout = await runYtDlp(
     ["--dump-single-json", "--no-warnings", "--no-playlist", "--no-check-certificates", "--", url],
-    { timeoutMs },
+    { timeoutMs, cookiesPath },
   );
 
   try {
@@ -89,6 +100,7 @@ export async function fetchYtDlpFormat(
   ytDlpFormatId: string,
   outputPath: string,
   timeoutMs: number,
+  cookiesPath?: string,
 ): Promise<void> {
   await runYtDlp(
     [
@@ -103,7 +115,7 @@ export async function fetchYtDlpFormat(
       "--",
       url,
     ],
-    { timeoutMs },
+    { timeoutMs, cookiesPath },
   );
 }
 

@@ -4,6 +4,7 @@ import { buildFormatOptions } from "./format-mapper";
 
 export interface AnalyzeOptions {
   timeoutMs?: number;
+  cookiesPath?: string;
 }
 
 const DEFAULT_TIMEOUT_MS = 60_000;
@@ -14,7 +15,7 @@ export async function analyzeUrl(
   options: AnalyzeOptions = {},
 ): Promise<{ response: AnalyzeResponse; raw: YtDlpInfo }> {
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-  const info = await fetchYtDlpInfo(url, timeoutMs);
+  const info = await fetchYtDlpInfo(url, timeoutMs, options.cookiesPath);
 
   const source = safeHostname(info.webpage_url) ?? safeHostname(url) ?? "unknown";
 
