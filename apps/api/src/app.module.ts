@@ -2,7 +2,7 @@ import { Module } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 import { APP_GUARD, DiscoveryModule, Reflector } from "@nestjs/core";
 import { ThrottlerModule, ThrottlerGuard } from "@nestjs/throttler";
-import { AppController } from "./app.controller";
+import { AppController } from "./welcome.controller";
 import { PrismaModule } from "./prisma/prisma.module";
 import { VideoModule } from "./video/video.module";
 import { SecurityModule } from "./common/security/security.module";
