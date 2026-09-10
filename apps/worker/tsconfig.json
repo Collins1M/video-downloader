@@ -7,7 +7,7 @@
     "sourceMap": true,
     "baseUrl": ".",
     "outDir": "./dist",
-    "rootDir": "src",
+    "rootDir": "../../",
     "strict": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
