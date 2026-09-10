@@ -1,7 +1,14 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "rootDir": "src"
+    "rootDir": "src",
+    "paths": {
+      "@video-downloader/types": ["./../../packages/types/dist"],
+      "@video-downloader/config": ["./../../packages/config/dist"],
+      "@video-downloader/database": ["./../../packages/database/dist"],
+      "@video-downloader/security": ["./../../packages/security/dist"],
+      "@video-downloader/media-extractor": ["./../../packages/media-extractor/dist"]
+    }
   },
   "exclude": ["node_modules", "dist", "test", "**/*spec.ts"]
 }
