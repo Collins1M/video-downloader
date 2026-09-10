@@ -26,11 +26,19 @@ export interface ResolvedAudioTarget {
   bitrateKbps: number;
 }
 
-export type ResolvedTarget = ResolvedVideoTarget | ResolvedAudioTarget;
+export interface ResolvedGifTarget {
+  kind: "gif";
+  container: "gif";
+  videoFormatId: string;
+}
 
-/** Container implied by our formatId naming convention (`-mp4` / `-mp3` suffix). */
-export function containerForFormatId(formatId: string): "mp4" | "mp3" {
-  return formatId.endsWith("-mp3") ? "mp3" : "mp4";
+export type ResolvedTarget = ResolvedVideoTarget | ResolvedAudioTarget | ResolvedGifTarget;
+
+/** Container implied by our formatId naming convention (`-mp4` / `-mp3` / `-gif` suffix). */
+export function containerForFormatId(formatId: string): "mp4" | "mp3" | "gif" {
+  if (formatId.endsWith("-mp3")) return "mp3";
+  if (formatId.endsWith("-gif")) return "gif";
+  return "mp4";
 }
 
 /** Deterministic output filename for a job, derivable by both the worker (writing it) and the API (streaming it) without any extra state. */
@@ -98,6 +106,19 @@ export function buildFormatOptions(info: YtDlpInfo): FormatOption[] {
     });
   }
 
+  // Offer GIF for short videos (Section 6 feature request)
+  if (info.duration && info.duration <= 60) {
+    const video480 = bestVideoFormatForHeight(info.formats, 480) || bestVideoFormatForHeight(info.formats, 360);
+    if (video480) {
+      options.push({
+        id: "gif",
+        type: "gif",
+        container: "gif",
+        resolution: "480p",
+      });
+    }
+  }
+
   if (audio) {
     for (const bitrate of AUDIO_BITRATE_TIERS) {
       if ((audio.abr ?? 0) < bitrate * 0.75) continue; // don't offer a tier the source can't really support
@@ -154,6 +175,16 @@ export function resolveFormatTarget(info: YtDlpInfo, formatId: string): Resolved
       container: "mp3",
       audioFormatId: audio.format_id,
       bitrateKbps: Number(audioMatch[1]),
+    };
+  }
+
+  if (formatId === "gif") {
+    const video = bestVideoFormatForHeight(info.formats, 480) || bestVideoFormatForHeight(info.formats, 360);
+    if (!video) throw new FormatNotFoundError();
+    return {
+      kind: "gif",
+      container: "gif",
+      videoFormatId: video.format_id,
     };
   }
 

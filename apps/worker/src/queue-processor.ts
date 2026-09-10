@@ -15,7 +15,7 @@ import {
   FormatNotFoundError,
   FileTooLargeError,
 } from "@video-downloader/media-extractor";
-import { mergeVideoAudio, remuxToMp4, extractAudioToMp3 } from "./ffmpeg";
+import { mergeVideoAudio, remuxToMp4, extractAudioToMp3, convertToGif } from "./ffmpeg";
 import { loadWorkerConfig } from "./config";
 import { prisma } from "./prisma";
 import { jobLogger } from "./logger";
@@ -94,13 +94,23 @@ export async function processVideoJob(job: Job<VideoProcessingJobData>): Promise
           setProgress(Math.min(99, 60 + Math.round(p * 0.35))),
         );
       }
-    } else {
+    } else if (target.kind === "audio") {
       const audioTmp = safeTempFilePath(config.tempDir, downloadJobId, "audio.tmp");
       intermediates.push(audioTmp);
       await fetchYtDlpFormat(dbJob.sourceUrl, target.audioFormatId, audioTmp, FETCH_TIMEOUT_MS, config.ytDlpCookies);
       await setProgress(50);
 
       await extractAudioToMp3(audioTmp, outputPath, target.bitrateKbps, info.duration, (p) =>
+        setProgress(Math.min(99, 50 + Math.round(p * 0.45))),
+      );
+    } else {
+      // GIF target
+      const videoTmp = safeTempFilePath(config.tempDir, downloadJobId, "video.tmp");
+      intermediates.push(videoTmp);
+      await fetchYtDlpFormat(dbJob.sourceUrl, target.videoFormatId, videoTmp, FETCH_TIMEOUT_MS, config.ytDlpCookies);
+      await setProgress(50);
+
+      await convertToGif(videoTmp, outputPath, info.duration, (p) =>
         setProgress(Math.min(99, 50 + Math.round(p * 0.45))),
       );
     }

@@ -1,5 +1,5 @@
 # ---- deps: full install (incl. devDependencies), used for building ----
-FROM node:20-slim AS deps
+FROM node:22-slim AS deps
 WORKDIR /app
 
 COPY package.json package-lock.json ./
@@ -23,7 +23,7 @@ WORKDIR /app/apps/worker
 RUN npm run build
 
 # ---- runner: prod-only deps + compiled output + runtime tools ----
-FROM node:20-slim AS runner
+FROM node:22-slim AS runner
 WORKDIR /app
 
 # FFmpeg does the merging/remuxing (Section 12). yt-dlp is the extraction

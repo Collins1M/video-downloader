@@ -72,6 +72,32 @@ export function extractAudioToMp3(
   });
 }
 
+/** GIF request: convert video to an animated GIF. */
+export function convertToGif(
+  inputPath: string,
+  outputPath: string,
+  durationSeconds: number | undefined,
+  onProgress?: ProgressCallback,
+): Promise<void> {
+  return new Promise((resolvePromise, reject) => {
+    // We use a two-pass palette approach for high quality.
+    // Filter chain: scale to 480w (preserving aspect), cap to 15fps,
+    // then generate/apply a custom palette for better colors.
+    const command = ffmpeg()
+      .input(inputPath)
+      .outputOptions([
+        "-vf",
+        "fps=15,scale=480:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse",
+      ])
+      .output(outputPath);
+
+    attachProgress(command, durationSeconds, onProgress);
+
+    command.on("end", () => resolvePromise()).on("error", (err) => reject(err));
+    command.run();
+  });
+}
+
 function attachProgress(
   command: ffmpeg.FfmpegCommand,
   durationSeconds: number | undefined,
