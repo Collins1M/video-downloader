@@ -57,7 +57,7 @@ function bestVideoFormatForHeight(formats: YtDlpFormat[], height: number): YtDlp
   // Check both height and width for resolution matching to support vertical videos
   // (e.g. 1080x1920 vs 1920x1080).
   const candidates = formats.filter((f) => {
-    if (!f.vcodec || f.vcodec === "none") return false;
+    if (!f.vcodec || f.vcodec === "none" || f.vcodec === "gif") return false;
     const actualHeight = f.height ?? 0;
     const actualWidth = (f as any).width ?? 0;
     return actualHeight === height || actualWidth === height;
@@ -111,7 +111,7 @@ export function buildFormatOptions(info: YtDlpInfo): FormatOption[] {
     const video480 = bestVideoFormatForHeight(info.formats, 480) || bestVideoFormatForHeight(info.formats, 360);
     if (video480) {
       options.push({
-        id: "gif",
+        id: "480p-gif",
         type: "gif",
         container: "gif",
         resolution: "480p",
@@ -178,8 +178,10 @@ export function resolveFormatTarget(info: YtDlpInfo, formatId: string): Resolved
     };
   }
 
-  if (formatId === "gif") {
-    const video = bestVideoFormatForHeight(info.formats, 480) || bestVideoFormatForHeight(info.formats, 360);
+  const gifMatch = /^(\d+)p-gif$/.exec(formatId);
+  if (gifMatch) {
+    const height = Number(gifMatch[1]);
+    const video = bestVideoFormatForHeight(info.formats, height);
     if (!video) throw new FormatNotFoundError();
     return {
       kind: "gif",
