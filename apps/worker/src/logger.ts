@@ -3,11 +3,23 @@ import pino from "pino";
 const isDev = process.env.NODE_ENV !== "production" && process.env.NODE_ENV !== "test";
 const isTest = process.env.NODE_ENV === "test";
 
+function getTransport() {
+  const usePretty = process.env.LOG_FORMAT === "pretty" || isDev;
+  if (!usePretty) return undefined;
+
+  return {
+    target: "pino-pretty",
+    options: {
+      colorize: true,
+      translateTime: "SYS:standard",
+      ignore: "pid,hostname",
+    },
+  };
+}
+
 export const logger = pino({
   level: process.env.LOG_LEVEL ?? (isTest ? "silent" : "info"),
-  transport: process.env.LOG_FORMAT === "pretty" || isDev
-    ? { target: "pino-pretty", options: { colorize: true, translateTime: "SYS:standard" } }
-    : undefined,
+  transport: getTransport(),
   base: { service: "worker" },
 });
 

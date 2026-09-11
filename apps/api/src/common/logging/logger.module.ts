@@ -6,14 +6,26 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 const isProd = process.env.NODE_ENV === "production";
 const isTest = process.env.NODE_ENV === "test";
 
+function getTransport() {
+  const usePretty = process.env.LOG_FORMAT === "pretty" || (!isProd && !isTest);
+  if (!usePretty) return undefined;
+
+  return {
+    target: "pino-pretty",
+    options: {
+      colorize: true,
+      translateTime: "SYS:standard",
+      ignore: "pid,hostname",
+    },
+  };
+}
+
 @Module({
   imports: [
     LoggerModule.forRoot({
       pinoHttp: {
         level: process.env.LOG_LEVEL ?? (isTest ? "silent" : "info"),
-        transport: process.env.LOG_FORMAT === "pretty" || (!isProd && !isTest)
-          ? { target: "pino-pretty", options: { colorize: true, translateTime: "SYS:standard" } }
-          : undefined,
+        transport: getTransport(),
         base: { service: "api" },
         genReqId: (req: IncomingMessage, res: ServerResponse) => {
           const existing = req.headers["x-request-id"];
