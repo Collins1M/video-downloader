@@ -29,6 +29,9 @@ export function runYtDlp(args: string[], options: RunYtDlpOptions): Promise<stri
     finalArgs.unshift("--cookies", options.cookiesPath);
   }
 
+  const startTime = Date.now();
+  console.log(`[YtDlp] Executing: yt-dlp ${finalArgs.join(" ")}`);
+
   return new Promise((resolvePromise, reject) => {
     execFile(
       "yt-dlp",
@@ -38,10 +41,15 @@ export function runYtDlp(args: string[], options: RunYtDlpOptions): Promise<stri
         maxBuffer: options.maxBufferBytes ?? 20 * 1024 * 1024,
       },
       (error, stdout, stderr) => {
+        const duration = Date.now() - startTime;
+        console.log(`[YtDlp] Finished in ${duration}ms`);
+
         if (!error) {
           resolvePromise(stdout);
           return;
         }
+
+        console.error(`[YtDlp] Command failed after ${duration}ms:`, stderr);
 
         if ((error as { killed?: boolean }).killed || error.signal === "SIGTERM") {
           reject(new ExtractionTimeoutError(stderr));

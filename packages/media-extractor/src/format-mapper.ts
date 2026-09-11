@@ -83,13 +83,18 @@ function estimateSize(f: YtDlpFormat, durationSeconds?: number): number | undefi
 
 /** Builds the curated FormatOption list shown to the user after analyze. */
 export function buildFormatOptions(info: YtDlpInfo): FormatOption[] {
+  console.log(`[FormatMapper] Curating formats for: ${info.title}`);
   const options: FormatOption[] = [];
   const audio = bestAudioFormat(info.formats);
 
   for (const height of VIDEO_HEIGHT_TIERS) {
     const video = bestVideoFormatForHeight(info.formats, height);
-    if (!video) continue;
+    if (!video) {
+      console.log(`[FormatMapper] No source match for ${height}p`);
+      continue;
+    }
 
+    console.log(`[FormatMapper] Matched ${height}p using source format ${video.format_id}`);
     const needsAudio = !video.acodec || video.acodec === "none";
     const combinedSize =
       estimateSize(video, info.duration) !== undefined

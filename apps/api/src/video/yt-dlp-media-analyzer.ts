@@ -23,9 +23,11 @@ export class YtDlpMediaAnalyzer implements MediaAnalyzer {
   constructor(private readonly config: ConfigService) {}
 
   async analyze(url: string, timeoutMs?: number): Promise<AnalyzeResponse> {
+    this.logger.log(`Starting analysis for URL: ${url}`);
     try {
       const cookiesPath = this.config.get<string>("YT_DLP_COOKIES");
-      const { response } = await analyzeUrl(url, { timeoutMs, cookiesPath });
+      const { response, raw } = await analyzeUrl(url, { timeoutMs, cookiesPath });
+      this.logger.log(`Analysis successful: "${raw.title}" (${raw.duration ?? 0}s). Found ${response.formats.length} supported formats.`);
       return response;
     } catch (err) {
       this.logger.warn(

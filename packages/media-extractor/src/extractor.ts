@@ -15,8 +15,10 @@ export async function analyzeUrl(
   options: AnalyzeOptions = {},
 ): Promise<{ response: AnalyzeResponse; raw: YtDlpInfo }> {
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  console.log(`[Extractor] Fetching raw info for ${url} (timeout: ${timeoutMs}ms)`);
   const info = await fetchYtDlpInfo(url, timeoutMs, options.cookiesPath);
 
+  console.log(`[Extractor] Raw info received: ${info.formats.length} raw formats found.`);
   const source = safeHostname(info.webpage_url) ?? safeHostname(url) ?? "unknown";
 
   const response: AnalyzeResponse = {
