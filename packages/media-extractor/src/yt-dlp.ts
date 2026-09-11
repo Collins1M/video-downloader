@@ -13,10 +13,29 @@ export interface RunYtDlpOptions {
 }
 
 
+/**
+ * Core arguments to bypass bot detection and 403 Forbidden errors.
+ * --impersonate chrome: mimics a real browser's TLS fingerprint and headers.
+ */
+const STEALTH_ARGS = [
+  "--impersonate",
+  "chrome",
+  "--user-agent",
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+  "--add-header",
+  "Accept-Language: en-US,en;q=0.9",
+];
+
 export function runYtDlp(args: string[], options: RunYtDlpOptions): Promise<string> {
-  const finalArgs = [...args];
+  const finalArgs = [...STEALTH_ARGS, ...args];
   if (options.cookiesPath) {
     finalArgs.unshift("--cookies", options.cookiesPath);
+  }
+
+  // Use the URL (usually the last arg) as the referer to bypass some 403 blocks
+  const lastArg = args[args.length - 1];
+  if (lastArg?.startsWith("http")) {
+    finalArgs.unshift("--referer", lastArg);
   }
 
   const startTime = Date.now();

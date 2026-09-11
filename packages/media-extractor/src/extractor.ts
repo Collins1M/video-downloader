@@ -18,6 +18,7 @@ export async function analyzeUrl(
   const info = await fetchYtDlpInfo(url, timeoutMs, options.cookiesPath);
 
   console.log(`[Extractor] Raw info received: ${info.formats.length} raw formats found.`);
+  console.log(`[Extractor] Detected Video: "${info.title}" | Duration: ${info.duration ?? 0}s`);
   const source = safeHostname(info.webpage_url) ?? safeHostname(url) ?? "unknown";
 
   const response: AnalyzeResponse = {
