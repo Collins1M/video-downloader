@@ -2,20 +2,14 @@ import type { FormatOption } from "@video-downloader/types";
 import type { YtDlpFormat, YtDlpInfo } from "./yt-dlp";
 import { FormatNotFoundError } from "./errors";
 
-// Curated tiers we offer, regardless of how many raw formats yt-dlp
-// reports. Keeping this a fixed, small set (rather than exposing every
-// raw format) is what Section 6 shows in the UI mockup and keeps the
-// formatId space small and predictable between analyze and download.
+
 const VIDEO_HEIGHT_TIERS = [2160, 1080, 720, 480, 360, 240, 144];
 const AUDIO_BITRATE_TIERS = [320, 192, 128];
 
 export interface ResolvedVideoTarget {
   kind: "video";
   container: "mp4";
-  /** yt-dlp format id to fetch for the video track. */
   videoFormatId: string;
-  /** Set when the chosen video format has no embedded audio and a
-   *  separate audio track must be fetched and muxed in. */
   audioFormatId: string | null;
 }
 
@@ -34,14 +28,12 @@ export interface ResolvedGifTarget {
 
 export type ResolvedTarget = ResolvedVideoTarget | ResolvedAudioTarget | ResolvedGifTarget;
 
-/** Container implied by our formatId naming convention (`-mp4` / `-mp3` / `-gif` suffix). */
 export function containerForFormatId(formatId: string): "mp4" | "mp3" | "gif" {
   if (formatId.endsWith("-mp3")) return "mp3";
   if (formatId.endsWith("-gif")) return "gif";
   return "mp4";
 }
 
-/** Deterministic output filename for a job, derivable by both the worker (writing it) and the API (streaming it) without any extra state. */
 export function outputFileName(formatId: string): string {
   return `output.${containerForFormatId(formatId)}`;
 }
@@ -54,8 +46,6 @@ function bestAudioFormat(formats: YtDlpFormat[]): YtDlpFormat | undefined {
 }
 
 function bestVideoFormatForHeight(formats: YtDlpFormat[], height: number): YtDlpFormat | undefined {
-  // Check both height and width for resolution matching to support vertical videos
-  // (e.g. 1080x1920 vs 1920x1080).
   const candidates = formats.filter((f) => {
     if (!f.vcodec || f.vcodec === "none" || f.vcodec === "gif") return false;
     const actualHeight = f.height ?? 0;
@@ -64,7 +54,6 @@ function bestVideoFormatForHeight(formats: YtDlpFormat[], height: number): YtDlp
   });
 
   if (candidates.length === 0) return undefined;
-  // Prefer widely-compatible codecs, then higher bitrate.
   return candidates.reduce((best, f) => {
     const bestIsAvc = best.vcodec?.startsWith("avc1") ?? false;
     const fIsAvc = f.vcodec?.startsWith("avc1") ?? false;
@@ -81,7 +70,6 @@ function estimateSize(f: YtDlpFormat, durationSeconds?: number): number | undefi
   return undefined;
 }
 
-/** Builds the curated FormatOption list shown to the user after analyze. */
 export function buildFormatOptions(info: YtDlpInfo): FormatOption[] {
   console.log(`[FormatMapper] Curating formats for: ${info.title}`);
   const options: FormatOption[] = [];
@@ -111,15 +99,18 @@ export function buildFormatOptions(info: YtDlpInfo): FormatOption[] {
     });
   }
 
-  // Offer GIF for short videos (Section 6 feature request)
-  if (info.duration && info.duration <= 60) {
-    const video480 = bestVideoFormatForHeight(info.formats, 480) || bestVideoFormatForHeight(info.formats, 360);
+  if (!info.duration || info.duration <= 60) {
+    const video480 =
+      bestVideoFormatForHeight(info.formats, 480) ||
+      bestVideoFormatForHeight(info.formats, 360) ||
+      info.formats.find((f) => f.vcodec !== "none");
+
     if (video480) {
       options.push({
-        id: "480p-gif",
+        id: `${video480.height ?? 480}p-gif`,
         type: "gif",
         container: "gif",
-        resolution: "480p",
+        resolution: `${video480.height ?? 480}p`,
       });
     }
   }
@@ -141,17 +132,6 @@ export function buildFormatOptions(info: YtDlpInfo): FormatOption[] {
   return options;
 }
 
-/**
- * Re-derives the same curated options against a fresh yt-dlp call and
- * finds the one matching `formatId`, returning the concrete yt-dlp
- * format id(s) needed to fetch it.
- *
- * Note: this assumes the source's available formats haven't materially
- * changed between analyze time and download time. For most sources that
- * holds over the minutes between a user analyzing and downloading; if it
- * doesn't, this throws FormatNotFoundError and the job fails cleanly
- * rather than silently fetching the wrong quality.
- */
 export function resolveFormatTarget(info: YtDlpInfo, formatId: string): ResolvedTarget {
   const videoMatch = /^(\d+)p-mp4$/.exec(formatId);
   if (videoMatch) {

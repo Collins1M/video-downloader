@@ -30,7 +30,6 @@ describe("buildFormatOptions", () => {
   });
 
   it("only offers audio bitrate tiers the source can actually support", () => {
-    // Source's only audio track is 128kbps — 320/192 tiers should be excluded.
     const audio = options.filter((o) => o.type === "audio");
     expect(audio.map((o) => o.bitrateKbps)).toEqual([128]);
   });

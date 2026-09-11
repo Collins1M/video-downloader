@@ -21,6 +21,18 @@ const isTest = process.env.NODE_ENV === "test";
           res.setHeader("X-Request-Id", id);
           return id;
         },
+        serializers: {
+          req: (req) => ({
+            id: req.id,
+            method: req.method,
+            url: req.url,
+            // Exclude headers to reduce log clutter
+          }),
+          res: (res) => ({
+            statusCode: res.statusCode,
+            // Exclude headers to reduce log clutter
+          }),
+        },
         redact: {
           paths: ["req.headers.authorization", "req.headers.cookie", 'res.headers["set-cookie"]'],
           censor: "[redacted]",

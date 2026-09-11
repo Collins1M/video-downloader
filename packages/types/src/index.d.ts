@@ -1,4 +1,4 @@
-export type MediaKind = "video" | "audio";
+export type MediaKind = "video" | "audio" | "gif";
 export type JobStatus = "queued" | "processing" | "completed" | "failed" | "cancelled";
 export interface VideoInfo {
     title: string;
@@ -46,4 +46,24 @@ export interface VideoProcessingJobData {
     downloadJobId: string;
     sourceUrl: string;
     formatId: string;
+    /** The API request id that created this job (Phase 12 correlation — see apps/api's pino-http request logging). Lets an operator trace a browser request through api logs, the queue, and worker logs as one thread. */
+    requestId?: string;
+}
+export interface AdminStats {
+    totalRequests: number;
+    activeDownloads: number;
+    completedDownloads: number;
+    failedDownloads: number;
+    bandwidthBytes: number;
+    averageProcessingTimeSeconds: number | null;
+    activeWorkers: number;
+}
+export interface ChartPoint {
+    date: string;
+    value: number;
+}
+export interface AdminChartsResponse {
+    downloadsPerDay: ChartPoint[];
+    errorsPerDay: ChartPoint[];
+    bandwidthPerDay: ChartPoint[];
 }

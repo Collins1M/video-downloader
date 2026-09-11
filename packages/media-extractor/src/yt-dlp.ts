@@ -7,22 +7,12 @@ import {
 } from "./errors";
 
 export interface RunYtDlpOptions {
-  /** Hard kill after this many ms (Section 13: maximum processing duration). */
   timeoutMs: number;
-  /** Cap on stdout/stderr buffered in memory. */
   maxBufferBytes?: number;
-  /** Path to a cookies.txt file for authentication (Phase 15: bot bypass). */
   cookiesPath?: string;
 }
 
-/**
- * Runs `yt-dlp` with a fixed, internally-constructed argument list and
- * returns stdout. The URL and any other dynamic values are always passed
- * as separate argv entries via execFile — never interpolated into a
- * shell string — so nothing the user supplies can inject additional
- * flags or shell metacharacters (Section 11: "Do not allow user input to
- * become arbitrary shell/FFmpeg commands").
- */
+
 export function runYtDlp(args: string[], options: RunYtDlpOptions): Promise<string> {
   const finalArgs = [...args];
   if (options.cookiesPath) {
@@ -78,7 +68,6 @@ export function runYtDlp(args: string[], options: RunYtDlpOptions): Promise<stri
   });
 }
 
-/** Fetches full metadata + format list for a URL as parsed JSON. */
 export async function fetchYtDlpInfo(
   url: string,
   timeoutMs: number,
@@ -96,13 +85,7 @@ export async function fetchYtDlpInfo(
   }
 }
 
-/**
- * Downloads one specific format to `outputPath`. Used by the worker at
- * processing time, never by anything that takes formatId from a raw
- * request body — the caller resolves formatId to a concrete yt-dlp
- * format id via resolveFormatTarget() first (see format-mapper.ts),
- * which only ever returns values yt-dlp itself reported as available.
- */
+
 export async function fetchYtDlpFormat(
   url: string,
   ytDlpFormatId: string,
@@ -128,8 +111,7 @@ export async function fetchYtDlpFormat(
 }
 
 
-// Minimal shape of what we actually read from yt-dlp's JSON output.
-// yt-dlp's real output has many more fields; we only type what we use.
+
 export interface YtDlpFormat {
   format_id: string;
   ext: string;
@@ -138,8 +120,8 @@ export interface YtDlpFormat {
   acodec?: string;
   filesize?: number | null;
   filesize_approx?: number | null;
-  tbr?: number | null; // total bitrate, kbps
-  abr?: number | null; // audio bitrate, kbps
+  tbr?: number | null; 
+  abr?: number | null; 
   protocol?: string;
 }
 
@@ -147,7 +129,7 @@ export interface YtDlpInfo {
   id: string;
   title: string;
   thumbnail?: string;
-  duration?: number; // seconds
+  duration?: number;
   webpage_url?: string;
   extractor_key?: string;
   formats: YtDlpFormat[];

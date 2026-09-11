@@ -9,7 +9,6 @@ export interface AnalyzeOptions {
 
 const DEFAULT_TIMEOUT_MS = 60_000;
 
-/** Runs yt-dlp for `url` and returns both the curated AnalyzeResponse and the raw info (the worker needs the raw info again to resolve a chosen format). */
 export async function analyzeUrl(
   url: string,
   options: AnalyzeOptions = {},
