@@ -64,12 +64,12 @@ describe("buildFormatOptions", () => {
     const weirdInfo: YtDlpInfo = {
       ...info,
       formats: [
-        { format_id: "weird", ext: "mp4", height: 500, vcodec: "avc1", acodec: "none", tbr: 1000 }
+        { format_id: "weird", ext: "mp4", height: 600, vcodec: "avc1", acodec: "none", tbr: 1000 }
       ]
     };
     const options = buildFormatOptions(weirdInfo);
     expect(options.find(o => o.id === "best-mp4")).toBeDefined();
-    expect(options.find(o => o.id === "best-mp4")?.resolution).toBe("500p");
+    expect(options.find(o => o.id === "best-mp4")?.resolution).toBe("600p");
   });
 
   it("handles native GIF sources correctly", () => {
