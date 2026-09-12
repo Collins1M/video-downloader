@@ -16,6 +16,7 @@ export interface RunYtDlpOptions {
 /**
  * Core arguments to bypass bot detection and 403 Forbidden errors.
  * --impersonate chrome: mimics a real browser's TLS fingerprint and headers.
+ * NOTE: Requires `curl-cffi` to be installed in the Python environment.
  */
 const STEALTH_ARGS = [
   "--impersonate",

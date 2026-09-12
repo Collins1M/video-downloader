@@ -30,7 +30,7 @@ WORKDIR /app
 # engine. Both are invoked at request time — see apps/worker README.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ffmpeg python3 python3-pip curl ca-certificates \
-    && pip3 install --break-system-packages --no-cache-dir yt-dlp \
+    && pip3 install --break-system-packages --no-cache-dir yt-dlp curl-cffi \
     && rm -rf /var/lib/apt/lists/* \
     && addgroup --gid 1001 --system nodejs \
     && adduser --system --uid 1001 nodejs
