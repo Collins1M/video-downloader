@@ -94,6 +94,14 @@ function estimateSize(f: YtDlpFormat, durationSeconds?: number): number | undefi
 
 export function buildFormatOptions(info: YtDlpInfo): FormatOption[] {
   console.log(`[FormatMapper] Curating formats for: ${info.title}`);
+
+  // Debug: Log all raw formats to understand why they might be filtered out
+  info.formats.forEach((f) => {
+    console.log(
+      `[FormatMapper] Raw Format: id=${f.format_id}, ext=${f.ext}, vcodec=${f.vcodec}, acodec=${f.acodec}, height=${f.height}, tbr=${f.tbr}, abr=${f.abr}`,
+    );
+  });
+
   const options: FormatOption[] = [];
   const audio = bestAudioFormat(info.formats);
 
