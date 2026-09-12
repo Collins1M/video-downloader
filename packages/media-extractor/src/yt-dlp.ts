@@ -25,10 +25,24 @@ const STEALTH_ARGS = [
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
   "--add-header",
   "Accept-Language: en-US,en;q=0.9",
+  "--add-header",
+  "Sec-Fetch-Mode: navigate",
+  "--add-header",
+  "Sec-Fetch-Site: cross-site",
+  "--add-header",
+  "Sec-Fetch-Dest: document",
+  "--no-check-certificates",
 ];
 
 export function runYtDlp(args: string[], options: RunYtDlpOptions): Promise<string> {
   const finalArgs = [...STEALTH_ARGS, ...args];
+
+  // Site-specific bypasses
+  const url = args[args.length - 1];
+  if (url && url.includes("pornhub.com")) {
+    finalArgs.unshift("--add-header", "Cookie: age_verified=1");
+  }
+
   if (options.cookiesPath) {
     finalArgs.unshift("--cookies", options.cookiesPath);
   }
@@ -76,7 +90,10 @@ export function runYtDlp(args: string[], options: RunYtDlpOptions): Promise<stri
           lowerStderr.includes("private video") ||
           lowerStderr.includes("this video is unavailable") ||
           lowerStderr.includes("content isn't available") ||
-          lowerStderr.includes("sign in to confirm")
+          lowerStderr.includes("sign in to confirm") ||
+          lowerStderr.includes("redirection detected") ||
+          lowerStderr.includes("model is in a private show") ||
+          lowerStderr.includes("room is currently offline")
         ) {
           reject(new VideoUnavailableError(stderr));
           return;

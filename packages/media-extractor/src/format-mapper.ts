@@ -45,14 +45,7 @@ function bestAudioFormat(formats: YtDlpFormat[]): YtDlpFormat | undefined {
   return audioOnly.reduce((best, f) => ((f.abr ?? 0) > (best.abr ?? 0) ? f : best));
 }
 
-function bestVideoFormatForHeight(formats: YtDlpFormat[], height: number): YtDlpFormat | undefined {
-  const candidates = formats.filter((f) => {
-    if (!f.vcodec || f.vcodec === "none" || f.vcodec === "gif") return false;
-    const actualHeight = f.height ?? 0;
-    const actualWidth = (f as any).width ?? 0;
-    return actualHeight === height || actualWidth === height;
-  });
-
+function pickBestVideoFormat(candidates: YtDlpFormat[]): YtDlpFormat | undefined {
   if (candidates.length === 0) return undefined;
   return candidates.reduce((best, f) => {
     const bestIsAvc = best.vcodec?.startsWith("avc1") ?? false;
@@ -61,6 +54,35 @@ function bestVideoFormatForHeight(formats: YtDlpFormat[], height: number): YtDlp
     if (!fIsAvc && bestIsAvc) return best;
     return (f.tbr ?? 0) > (best.tbr ?? 0) ? f : best;
   });
+}
+
+function bestVideoFormatForHeight(formats: YtDlpFormat[], height: number): YtDlpFormat | undefined {
+  const TOLERANCE = 0.1; // allow 10% difference (e.g. 1072p matches 1080p)
+
+  const candidates = formats.filter((f) => {
+    // Only match standard video codecs for resolution tiers
+    if (!f.vcodec || f.vcodec === "none" || f.vcodec === "gif") return false;
+    const actualHeight = f.height ?? 0;
+    const actualWidth = (f as any).width ?? 0;
+
+    const heightMatch = Math.abs(actualHeight - height) / height <= TOLERANCE;
+    const widthMatch = Math.abs(actualWidth - height) / height <= TOLERANCE;
+
+    return heightMatch || widthMatch;
+  });
+
+  return pickBestVideoFormat(candidates);
+}
+
+function bestOverallVideoFormat(formats: YtDlpFormat[]): YtDlpFormat | undefined {
+  // 1. Try to find real video first
+  const videoCandidates = formats.filter((f) => f.vcodec && f.vcodec !== "none" && f.vcodec !== "gif");
+  const bestVideo = pickBestVideoFormat(videoCandidates);
+  if (bestVideo) return bestVideo;
+
+  // 2. Fallback to GIF if that's all we have
+  const gifCandidates = formats.filter((f) => f.vcodec === "gif" || f.ext === "gif");
+  return gifCandidates[0];
 }
 
 function estimateSize(f: YtDlpFormat, durationSeconds?: number): number | undefined {
@@ -99,18 +121,43 @@ export function buildFormatOptions(info: YtDlpInfo): FormatOption[] {
     });
   }
 
-  if (!info.duration || info.duration <= 60) {
-    const video480 =
+  if (options.length === 0) {
+    const best = bestOverallVideoFormat(info.formats);
+    if (best) {
+      console.log(`[FormatMapper] No tiers matched. Using best available: ${best.format_id}`);
+      const isGif = best.vcodec === "gif" || best.ext === "gif";
+      const needsAudio = !isGif && (!best.acodec || best.acodec === "none");
+      const combinedSize =
+        estimateSize(best, info.duration) !== undefined
+          ? (estimateSize(best, info.duration) ?? 0) +
+            (needsAudio && audio ? (estimateSize(audio, info.duration) ?? 0) : 0)
+          : undefined;
+
+      options.push({
+        id: isGif ? "best-gif" : "best-mp4",
+        type: isGif ? "gif" : "video",
+        container: isGif ? "gif" : "mp4",
+        resolution: best.height ? `${best.height}p` : "Source",
+        estimatedSize: combinedSize,
+      });
+    }
+  }
+
+  // Offer GIF conversion for short videos, or keep native GIF if it wasn't caught above
+  if ((info.duration && info.duration > 0 && info.duration <= 60) || info.formats.some(f => f.ext === 'gif')) {
+    const nativeGif = info.formats.find(f => f.ext === 'gif');
+    const videoForGif =
+      nativeGif ||
       bestVideoFormatForHeight(info.formats, 480) ||
       bestVideoFormatForHeight(info.formats, 360) ||
       info.formats.find((f) => f.vcodec !== "none");
 
-    if (video480) {
+    if (videoForGif && !options.some(o => o.id === 'best-gif')) {
       options.push({
-        id: `${video480.height ?? 480}p-gif`,
+        id: nativeGif ? "best-gif" : `${videoForGif.height ?? 480}p-gif`,
         type: "gif",
         container: "gif",
-        resolution: `${video480.height ?? 480}p`,
+        resolution: `${videoForGif.height ?? 480}p`,
       });
     }
   }
@@ -133,6 +180,29 @@ export function buildFormatOptions(info: YtDlpInfo): FormatOption[] {
 }
 
 export function resolveFormatTarget(info: YtDlpInfo, formatId: string): ResolvedTarget {
+  if (formatId === "best-mp4" || formatId === "best-gif") {
+    const video = bestOverallVideoFormat(info.formats);
+    if (!video) throw new FormatNotFoundError();
+
+    if (formatId === "best-gif" || video.vcodec === "gif" || video.ext === "gif") {
+      return {
+        kind: "gif",
+        container: "gif",
+        videoFormatId: video.format_id,
+      };
+    }
+
+    const needsAudio = !video.acodec || video.acodec === "none";
+    const audio = needsAudio ? bestAudioFormat(info.formats) : undefined;
+
+    return {
+      kind: "video",
+      container: "mp4",
+      videoFormatId: video.format_id,
+      audioFormatId: needsAudio ? (audio?.format_id ?? null) : null,
+    };
+  }
+
   const videoMatch = /^(\d+)p-mp4$/.exec(formatId);
   if (videoMatch) {
     const height = Number(videoMatch[1]);

@@ -49,6 +49,42 @@ describe("buildFormatOptions", () => {
     expect(opt2160).toBeUndefined();
   });
 
+  it("matches a tier using fuzzy resolution matching (e.g. 1072p matches 1080p)", () => {
+    const fuzzyInfo: YtDlpInfo = {
+      ...info,
+      formats: [
+        { format_id: "fuzzy", ext: "mp4", height: 1072, vcodec: "avc1", acodec: "none", tbr: 4000 }
+      ]
+    };
+    const fuzzyOptions = buildFormatOptions(fuzzyInfo);
+    expect(fuzzyOptions.find(o => o.id === "1080p-mp4")).toBeDefined();
+  });
+
+  it("offers 'Source Quality' when no resolution tiers match", () => {
+    const weirdInfo: YtDlpInfo = {
+      ...info,
+      formats: [
+        { format_id: "weird", ext: "mp4", height: 500, vcodec: "avc1", acodec: "none", tbr: 1000 }
+      ]
+    };
+    const options = buildFormatOptions(weirdInfo);
+    expect(options.find(o => o.id === "best-mp4")).toBeDefined();
+    expect(options.find(o => o.id === "best-mp4")?.resolution).toBe("500p");
+  });
+
+  it("handles native GIF sources correctly", () => {
+    const gifInfo: YtDlpInfo = {
+      ...info,
+      duration: 0,
+      formats: [
+        { format_id: "gif-src", ext: "gif", height: 480, vcodec: "gif", acodec: "none" }
+      ]
+    };
+    const options = buildFormatOptions(gifInfo);
+    expect(options.find(o => o.id === "best-gif")).toBeDefined();
+    expect(options.find(o => o.id === "best-gif")?.container).toBe("gif");
+  });
+
   it("returns no formats for a source with nothing usable", () => {
     const empty = buildFormatOptions({ ...info, formats: [] });
     expect(empty).toEqual([]);
