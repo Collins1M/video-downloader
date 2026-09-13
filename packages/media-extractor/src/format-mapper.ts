@@ -74,13 +74,21 @@ function bestVideoFormatForHeight(formats: YtDlpFormat[], height: number): YtDlp
   return pickBestVideoFormat(candidates);
 }
 
+function isVideoExtension(ext: string): boolean {
+  return ["mp4", "webm", "mkv", "flv", "avi", "mov", "wmv", "m4v", "3gp"].includes(ext.toLowerCase());
+}
+
 function bestOverallVideoFormat(formats: YtDlpFormat[]): YtDlpFormat | undefined {
-  // 1. Try to find real video first
+  // 1. Try to find real video first (explicit codec)
   const videoCandidates = formats.filter((f) => f.vcodec && f.vcodec !== "none" && f.vcodec !== "gif");
   const bestVideo = pickBestVideoFormat(videoCandidates);
   if (bestVideo) return bestVideo;
 
-  // 2. Fallback to GIF if that's all we have
+  // 2. Try generic video extensions if codec is missing
+  const genericCandidates = formats.filter((f) => (!f.vcodec || f.vcodec === "none") && isVideoExtension(f.ext));
+  if (genericCandidates.length > 0) return genericCandidates[0];
+
+  // 3. Fallback to GIF if that's all we have
   const gifCandidates = formats.filter((f) => f.vcodec === "gif" || f.ext === "gif");
   return gifCandidates[0];
 }

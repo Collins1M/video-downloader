@@ -85,6 +85,18 @@ describe("buildFormatOptions", () => {
     expect(options.find(o => o.id === "best-gif")?.container).toBe("gif");
   });
 
+  it("handles generic video URLs with missing codec metadata", () => {
+    const genericInfo: YtDlpInfo = {
+      ...info,
+      formats: [
+        { format_id: "video_url", ext: "mp4", vcodec: undefined as any, acodec: undefined as any, height: undefined as any, tbr: null as any, abr: null as any }
+      ]
+    };
+    const options = buildFormatOptions(genericInfo);
+    expect(options.find(o => o.id === "best-mp4")).toBeDefined();
+    expect(options.find(o => o.id === "best-mp4")?.resolution).toBe("Source");
+  });
+
   it("returns no formats for a source with nothing usable", () => {
     const empty = buildFormatOptions({ ...info, formats: [] });
     expect(empty).toEqual([]);
