@@ -52,6 +52,16 @@ export class ProcessingFailedException extends AppException {
   }
 }
 
+export class AuthenticationRequiredException extends AppException {
+  constructor() {
+    super(
+      "AUTHENTICATION_REQUIRED",
+      "This content is protected and requires authentication (login) to access.",
+      HttpStatus.FORBIDDEN,
+    );
+  }
+}
+
 export class FileTooLargeException extends AppException {
   constructor() {
     super(

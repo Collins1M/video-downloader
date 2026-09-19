@@ -7,6 +7,7 @@ import {
   VideoUnavailableError,
   ExtractionTimeoutError,
   ExtractionFailedError,
+  AuthenticationRequiredError,
 } from "@video-downloader/media-extractor";
 import { MediaAnalyzer } from "./media-analyzer.interface";
 import {
@@ -14,6 +15,7 @@ import {
   VideoUnavailableException,
   ProcessingTimeoutException,
   ProcessingFailedException,
+  AuthenticationRequiredException,
 } from "../common/exceptions/app-exceptions";
 
 @Injectable()
@@ -38,6 +40,7 @@ export class YtDlpMediaAnalyzer implements MediaAnalyzer {
       if (err instanceof UnsupportedSourceError) throw new UnsupportedSourceException();
       if (err instanceof VideoUnavailableError) throw new VideoUnavailableException();
       if (err instanceof ExtractionTimeoutError) throw new ProcessingTimeoutException();
+      if (err instanceof AuthenticationRequiredError) throw new AuthenticationRequiredException();
       if (err instanceof ExtractionFailedError) throw new ProcessingFailedException();
       throw new ProcessingFailedException();
     }

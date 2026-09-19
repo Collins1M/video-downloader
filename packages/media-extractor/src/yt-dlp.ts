@@ -8,6 +8,7 @@ import {
   VideoUnavailableError,
   ExtractionTimeoutError,
   ExtractionFailedError,
+  AuthenticationRequiredError,
 } from "./errors";
 
 export interface RunYtDlpOptions {
@@ -83,6 +84,14 @@ export async function runYtDlp(args: string[], options: RunYtDlpOptions): Promis
           const lowerStderr = stderr.toLowerCase();
           if (lowerStderr.includes("unsupported url")) {
             reject(new UnsupportedSourceError(stderr));
+            return;
+          }
+          if (
+            lowerStderr.includes("you need to log in") ||
+            lowerStderr.includes("sign in to confirm your age") ||
+            lowerStderr.includes("use --cookies")
+          ) {
+            reject(new AuthenticationRequiredError(stderr));
             return;
           }
           if (

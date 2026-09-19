@@ -34,6 +34,15 @@ export class ExtractionFailedError extends Error {
   }
 }
 
+export class AuthenticationRequiredError extends Error {
+  detail?: string;
+  constructor(detail?: string) {
+    super("Authentication is required to access this content.");
+    this.name = "AuthenticationRequiredError";
+    this.detail = detail;
+  }
+}
+
 export class FormatNotFoundError extends Error {
   constructor() {
     super("The requested format is no longer available for this video.");
