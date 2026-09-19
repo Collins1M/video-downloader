@@ -8,6 +8,7 @@ export {
   VideoUnavailableError,
   ExtractionTimeoutError,
   ExtractionFailedError,
+  AuthenticationRequiredError,
   FormatNotFoundError,
   FileTooLargeError,
 } from "./errors";
