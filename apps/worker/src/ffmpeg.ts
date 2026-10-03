@@ -46,6 +46,33 @@ export function remuxToMp4(
 
     attachProgress(command, durationSeconds, onProgress);
 
+    command.on("end", () => resolvePromise()).on("error", async (err) => {
+      console.warn(`[FFmpeg] Fast remux (-c copy) failed: ${err.message}. Retrying with transcoding...`);
+      try {
+        await transcodeToMp4(inputPath, outputPath, durationSeconds, onProgress);
+        resolvePromise();
+      } catch (transcodeErr) {
+        reject(transcodeErr);
+      }
+    });
+    command.run();
+  });
+}
+
+function transcodeToMp4(
+  inputPath: string,
+  outputPath: string,
+  durationSeconds: number | undefined,
+  onProgress?: ProgressCallback,
+): Promise<void> {
+  return new Promise((resolvePromise, reject) => {
+    const command = ffmpeg()
+      .input(inputPath)
+      .outputOptions(["-c:v libx264", "-preset superfast", "-c:a aac", "-movflags +faststart"])
+      .output(outputPath);
+
+    attachProgress(command, durationSeconds, onProgress);
+
     command.on("end", () => resolvePromise()).on("error", (err) => reject(err));
     command.run();
   });

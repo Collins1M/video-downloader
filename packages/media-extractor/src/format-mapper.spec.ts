@@ -97,6 +97,20 @@ describe("buildFormatOptions", () => {
     expect(options.find(o => o.id === "best-mp4")?.resolution).toBe("Source");
   });
 
+  it("correctly matches resolution tiers when formats have height but undefined vcodec", () => {
+    const xxbritsInfo: YtDlpInfo = {
+      ...info,
+      formats: [
+        { format_id: "480p", ext: "mp4", height: 480, vcodec: undefined as any, acodec: undefined as any },
+        { format_id: "720p", ext: "mp4", height: 720, vcodec: undefined as any, acodec: undefined as any }
+      ]
+    };
+    const options = buildFormatOptions(xxbritsInfo);
+    const videoResolutions = options.filter(o => o.type === "video").map(o => o.resolution);
+    expect(videoResolutions).toContain("720p");
+    expect(videoResolutions).toContain("480p");
+  });
+
   it("returns no formats for a source with nothing usable", () => {
     const empty = buildFormatOptions({ ...info, formats: [] });
     expect(empty).toEqual([]);

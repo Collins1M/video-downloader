@@ -56,17 +56,37 @@ function pickBestVideoFormat(candidates: YtDlpFormat[]): YtDlpFormat | undefined
   });
 }
 
+function isVideoCandidate(f: YtDlpFormat): boolean {
+  if (f.vcodec === "none" || f.vcodec === "gif") return false;
+  if (f.vcodec && f.vcodec !== "none") return true;
+  if (f.ext && isVideoExtension(f.ext)) return true;
+  if ((f.height ?? 0) > 0) return true;
+  if (f.format_id && /(\d{3,4})p?/i.test(f.format_id)) return true;
+  return false;
+}
+
+function getFormatHeight(f: YtDlpFormat): number | undefined {
+  if (typeof f.height === "number" && f.height > 0) return f.height;
+  if (f.format_id) {
+    const match = /(\d{3,4})p/i.exec(f.format_id);
+    if (match) return Number(match[1]);
+  }
+  return undefined;
+}
+
 function bestVideoFormatForHeight(formats: YtDlpFormat[], height: number): YtDlpFormat | undefined {
   const TOLERANCE = 0.1; // allow 10% difference (e.g. 1072p matches 1080p)
 
   const candidates = formats.filter((f) => {
-    // Only match standard video codecs for resolution tiers
-    if (!f.vcodec || f.vcodec === "none" || f.vcodec === "gif") return false;
-    const actualHeight = f.height ?? 0;
+    if (!isVideoCandidate(f)) return false;
+
+    const actualHeight = getFormatHeight(f) ?? 0;
     const actualWidth = (f as any).width ?? 0;
 
-    const heightMatch = Math.abs(actualHeight - height) / height <= TOLERANCE;
-    const widthMatch = Math.abs(actualWidth - height) / height <= TOLERANCE;
+    if (actualHeight <= 0 && actualWidth <= 0) return false;
+
+    const heightMatch = actualHeight > 0 && Math.abs(actualHeight - height) / height <= TOLERANCE;
+    const widthMatch = actualWidth > 0 && Math.abs(actualWidth - height) / height <= TOLERANCE;
 
     return heightMatch || widthMatch;
   });

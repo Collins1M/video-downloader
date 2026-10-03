@@ -89,7 +89,9 @@ export async function runYtDlp(args: string[], options: RunYtDlpOptions): Promis
           if (
             lowerStderr.includes("you need to log in") ||
             lowerStderr.includes("sign in to confirm your age") ||
-            lowerStderr.includes("use --cookies")
+            lowerStderr.includes("use --cookies") ||
+            lowerStderr.includes("isn't available to everyone") ||
+            lowerStderr.includes("can't be seen by certain audiences")
           ) {
             reject(new AuthenticationRequiredError(stderr));
             return;
@@ -175,16 +177,28 @@ export async function fetchYtDlpFormat(
   timeoutMs: number,
   cookiesPath?: string,
 ): Promise<void> {
+  const formatSpec =
+    ytDlpFormatId.includes("/") || ytDlpFormatId === "best" || ytDlpFormatId === "b"
+      ? ytDlpFormatId
+      : `${ytDlpFormatId}/best`;
+
   await runYtDlp(
     [
       "-f",
-      ytDlpFormatId,
+      formatSpec,
       "-o",
       outputPath,
+      "--no-progress",
       "--no-warnings",
       "--no-playlist",
       "--no-check-certificates",
       "--no-part",
+      "--retries",
+      "10",
+      "--fragment-retries",
+      "10",
+      "--concurrent-fragments",
+      "5",
       "--",
       url,
     ],
