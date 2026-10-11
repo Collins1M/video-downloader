@@ -122,19 +122,20 @@ function estimateSize(f: YtDlpFormat, durationSeconds?: number): number | undefi
 
 export function buildFormatOptions(info: YtDlpInfo): FormatOption[] {
   console.log(`[FormatMapper] Curating formats for: ${info.title}`);
+  const rawFormats = info.formats ?? [];
 
   // Debug: Log all raw formats to understand why they might be filtered out
-  info.formats.forEach((f) => {
+  rawFormats.forEach((f) => {
     console.log(
       `[FormatMapper] Raw Format: id=${f.format_id}, ext=${f.ext}, vcodec=${f.vcodec}, acodec=${f.acodec}, height=${f.height}, tbr=${f.tbr}, abr=${f.abr}`,
     );
   });
 
   const options: FormatOption[] = [];
-  const audio = bestAudioFormat(info.formats);
+  const audio = bestAudioFormat(rawFormats);
 
   for (const height of VIDEO_HEIGHT_TIERS) {
-    const video = bestVideoFormatForHeight(info.formats, height);
+    const video = bestVideoFormatForHeight(rawFormats, height);
     if (!video) {
       console.log(`[FormatMapper] No source match for ${height}p`);
       continue;
@@ -158,7 +159,7 @@ export function buildFormatOptions(info: YtDlpInfo): FormatOption[] {
   }
 
   if (options.length === 0) {
-    const best = bestOverallVideoFormat(info.formats);
+    const best = bestOverallVideoFormat(rawFormats);
     if (best) {
       console.log(`[FormatMapper] No tiers matched. Using best available: ${best.format_id}`);
       const isGif = best.vcodec === "gif" || best.ext === "gif";
@@ -180,13 +181,13 @@ export function buildFormatOptions(info: YtDlpInfo): FormatOption[] {
   }
 
   // Offer GIF conversion for short videos, or keep native GIF if it wasn't caught above
-  if ((info.duration && info.duration > 0 && info.duration <= 60) || info.formats.some(f => f.ext === 'gif')) {
-    const nativeGif = info.formats.find(f => f.ext === 'gif');
+  if ((info.duration && info.duration > 0 && info.duration <= 60) || rawFormats.some(f => f.ext === 'gif')) {
+    const nativeGif = rawFormats.find(f => f.ext === 'gif');
     const videoForGif =
       nativeGif ||
-      bestVideoFormatForHeight(info.formats, 480) ||
-      bestVideoFormatForHeight(info.formats, 360) ||
-      info.formats.find((f) => f.vcodec !== "none");
+      bestVideoFormatForHeight(rawFormats, 480) ||
+      bestVideoFormatForHeight(rawFormats, 360) ||
+      rawFormats.find((f) => f.vcodec !== "none");
 
     if (videoForGif && !options.some(o => o.id === 'best-gif')) {
       options.push({
@@ -216,8 +217,10 @@ export function buildFormatOptions(info: YtDlpInfo): FormatOption[] {
 }
 
 export function resolveFormatTarget(info: YtDlpInfo, formatId: string): ResolvedTarget {
+  const formats = info.formats ?? [];
+
   if (formatId === "best-mp4" || formatId === "best-gif") {
-    const video = bestOverallVideoFormat(info.formats);
+    const video = bestOverallVideoFormat(formats);
     if (!video) throw new FormatNotFoundError();
 
     if (formatId === "best-gif" || video.vcodec === "gif" || video.ext === "gif") {
@@ -229,7 +232,7 @@ export function resolveFormatTarget(info: YtDlpInfo, formatId: string): Resolved
     }
 
     const needsAudio = !video.acodec || video.acodec === "none";
-    const audio = needsAudio ? bestAudioFormat(info.formats) : undefined;
+    const audio = needsAudio ? bestAudioFormat(formats) : undefined;
 
     return {
       kind: "video",
@@ -242,11 +245,11 @@ export function resolveFormatTarget(info: YtDlpInfo, formatId: string): Resolved
   const videoMatch = /^(\d+)p-mp4$/.exec(formatId);
   if (videoMatch) {
     const height = Number(videoMatch[1]);
-    const video = bestVideoFormatForHeight(info.formats, height);
+    const video = bestVideoFormatForHeight(formats, height);
     if (!video) throw new FormatNotFoundError();
 
     const needsAudio = !video.acodec || video.acodec === "none";
-    const audio = needsAudio ? bestAudioFormat(info.formats) : undefined;
+    const audio = needsAudio ? bestAudioFormat(formats) : undefined;
 
     return {
       kind: "video",
@@ -258,7 +261,7 @@ export function resolveFormatTarget(info: YtDlpInfo, formatId: string): Resolved
 
   const audioMatch = /^(\d+)kbps-mp3$/.exec(formatId);
   if (audioMatch) {
-    const audio = bestAudioFormat(info.formats);
+    const audio = bestAudioFormat(formats);
     if (!audio) throw new FormatNotFoundError();
 
     return {
@@ -272,7 +275,7 @@ export function resolveFormatTarget(info: YtDlpInfo, formatId: string): Resolved
   const gifMatch = /^(\d+)p-gif$/.exec(formatId);
   if (gifMatch) {
     const height = Number(gifMatch[1]);
-    const video = bestVideoFormatForHeight(info.formats, height);
+    const video = bestVideoFormatForHeight(formats, height);
     if (!video) throw new FormatNotFoundError();
     return {
       kind: "gif",

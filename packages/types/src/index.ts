@@ -1,6 +1,8 @@
 // Shared contracts between apps/web, apps/api, and apps/worker.
 // Keep this package framework-agnostic (no Nest/Next imports).
 
+export * from "./theme";
+
 export type MediaKind = "video" | "audio" | "gif";
 
 export type JobStatus =
@@ -10,11 +12,15 @@ export type JobStatus =
   | "failed"
   | "cancelled";
 
+export type PlatformType = "instagram" | "tiktok" | "youtube" | "pornhub" | "generic";
+
 export interface VideoInfo {
   title: string;
   thumbnail: string;
   duration: number; // seconds
   source: string; // domain
+  platform?: PlatformType;
+  requiresAgeConsent?: boolean;
 }
 
 export interface FormatOption {
@@ -26,14 +32,27 @@ export interface FormatOption {
   estimatedSize?: number; // bytes, optional
 }
 
+export interface AnalyzedVideoItem {
+  id: string;
+  url?: string;
+  video: VideoInfo;
+  formats: FormatOption[];
+}
+
 export interface AnalyzeRequest {
   url: string;
+  ageConsent?: boolean;
 }
 
 export interface AnalyzeResponse {
   success: boolean;
+  isPlaylist?: boolean;
+  playlistTitle?: string;
+  totalVideos?: number;
   video: VideoInfo;
   formats: FormatOption[];
+  videos?: AnalyzedVideoItem[];
+  requiresAgeConsent?: boolean;
 }
 
 export interface CreateDownloadRequest {
@@ -67,6 +86,7 @@ export interface ApiErrorResponse {
     | "RATE_LIMITED"
     | "JOB_NOT_READY"
     | "FILE_EXPIRED"
+    | "AGE_VERIFICATION_REQUIRED"
     | "INTERNAL_ERROR";
 }
 

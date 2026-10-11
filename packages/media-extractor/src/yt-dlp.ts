@@ -9,12 +9,14 @@ import {
   ExtractionTimeoutError,
   ExtractionFailedError,
   AuthenticationRequiredError,
+  AgeConsentRequiredError,
 } from "./errors";
 
 export interface RunYtDlpOptions {
   timeoutMs: number;
   maxBufferBytes?: number;
   cookiesPath?: string;
+  ageConsent?: boolean;
 }
 
 
@@ -41,14 +43,20 @@ const STEALTH_ARGS = [
 
 export async function runYtDlp(args: string[], options: RunYtDlpOptions): Promise<string> {
   const url = args[args.length - 1];
-  const finalArgs = [...STEALTH_ARGS, ...args];
+  const finalArgs = [...STEALTH_ARGS];
+
+  if (options.ageConsent) {
+    finalArgs.push("--age-limit", "99");
+  }
+
+  finalArgs.push(...args);
 
   // Use the URL (usually the last arg) as the referer to bypass some 403 blocks
   if (url?.startsWith("http")) {
     finalArgs.unshift("--referer", url);
   }
 
-  const tempCookiesPath = await ensureCookieFile(url, options.cookiesPath);
+  const tempCookiesPath = await ensureCookieFile(url, options.cookiesPath, options.ageConsent);
   if (tempCookiesPath) {
     finalArgs.unshift("--cookies", tempCookiesPath);
   }
@@ -87,11 +95,20 @@ export async function runYtDlp(args: string[], options: RunYtDlpOptions): Promis
             return;
           }
           if (
-            lowerStderr.includes("you need to log in") ||
             lowerStderr.includes("sign in to confirm your age") ||
-            lowerStderr.includes("use --cookies") ||
-            lowerStderr.includes("isn't available to everyone") ||
-            lowerStderr.includes("can't be seen by certain audiences")
+            lowerStderr.includes("confirm your age") ||
+            lowerStderr.includes("age-restricted") ||
+            lowerStderr.includes("can't be seen by certain audiences") ||
+            lowerStderr.includes("isn't available to everyone")
+          ) {
+            if (!options.ageConsent) {
+              reject(new AgeConsentRequiredError(stderr));
+              return;
+            }
+          }
+          if (
+            lowerStderr.includes("you need to log in") ||
+            lowerStderr.includes("use --cookies")
           ) {
             reject(new AuthenticationRequiredError(stderr));
             return;
@@ -101,7 +118,6 @@ export async function runYtDlp(args: string[], options: RunYtDlpOptions): Promis
             lowerStderr.includes("private video") ||
             lowerStderr.includes("this video is unavailable") ||
             lowerStderr.includes("content isn't available") ||
-            lowerStderr.includes("sign in to confirm") ||
             lowerStderr.includes("redirection detected") ||
             lowerStderr.includes("model is in a private show") ||
             lowerStderr.includes("room is currently offline")
@@ -124,9 +140,9 @@ export async function runYtDlp(args: string[], options: RunYtDlpOptions): Promis
   }
 }
 
-async function ensureCookieFile(url: string, userCookiesPath?: string): Promise<string | undefined> {
+async function ensureCookieFile(url: string, userCookiesPath?: string, ageConsent?: boolean): Promise<string | undefined> {
   const isPornhub = url && url.includes("pornhub.com");
-  if (!isPornhub && !userCookiesPath) return undefined;
+  if (!isPornhub && !userCookiesPath && !ageConsent) return undefined;
 
   let content = "# Netscape HTTP Cookie File\n";
 
@@ -139,8 +155,9 @@ async function ensureCookieFile(url: string, userCookiesPath?: string): Promise<
     }
   }
 
-  if (isPornhub) {
+  if (isPornhub || ageConsent) {
     content += ".pornhub.com\tTRUE\t/\tFALSE\t2147483647\tage_verified\t1\n";
+    content += ".youtube.com\tTRUE\t/\tFALSE\t2147483647\tST-1393685324\t1\n";
   }
 
   const tempPath = path.join(os.tmpdir(), `ytdlp-cookies-${crypto.randomBytes(8).toString("hex")}.txt`);
@@ -152,15 +169,21 @@ export async function fetchYtDlpInfo(
   url: string,
   timeoutMs: number,
   cookiesPath?: string,
+  allowPlaylist: boolean = true,
+  ageConsent: boolean = false,
 ): Promise<YtDlpInfo> {
-  const stdout = await runYtDlp(
-    ["--dump-single-json", "--no-warnings", "--no-playlist", "--no-check-certificates", "--", url],
-    { timeoutMs, cookiesPath },
-  );
+  const args = ["--dump-single-json", "--no-warnings", "--no-check-certificates"];
+  if (!allowPlaylist) {
+    args.push("--no-playlist");
+  }
+
+  args.push("--", url);
+
+  const stdout = await runYtDlp(args, { timeoutMs, cookiesPath, ageConsent });
 
   try {
     const info = JSON.parse(stdout) as YtDlpInfo;
-    console.log(`[YtDlp] Successfully parsed JSON for ${info.id}. Title: "${info.title}"`);
+    console.log(`[YtDlp] Successfully parsed JSON for ${info.id || info.title}. Type: ${info._type ?? 'single'}`);
     return info;
   } catch (err) {
     console.error(`[YtDlp] Failed to parse JSON. Error: ${err}`);
@@ -176,6 +199,7 @@ export async function fetchYtDlpFormat(
   outputPath: string,
   timeoutMs: number,
   cookiesPath?: string,
+  ageConsent?: boolean,
 ): Promise<void> {
   const formatSpec =
     ytDlpFormatId.includes("/") || ytDlpFormatId === "best" || ytDlpFormatId === "b"
@@ -202,7 +226,7 @@ export async function fetchYtDlpFormat(
       "--",
       url,
     ],
-    { timeoutMs, cookiesPath },
+    { timeoutMs, cookiesPath, ageConsent },
   );
 }
 
@@ -227,6 +251,12 @@ export interface YtDlpInfo {
   thumbnail?: string;
   duration?: number;
   webpage_url?: string;
+  url?: string;
   extractor_key?: string;
-  formats: YtDlpFormat[];
+  extractor?: string;
+  uploader?: string;
+  _type?: string;
+  entries?: YtDlpInfo[];
+  formats?: YtDlpFormat[];
+  age_limit?: number;
 }

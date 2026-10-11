@@ -36,11 +36,11 @@ export class VideoService {
     @InjectQueue(VIDEO_PROCESSING_QUEUE) private readonly queue: Queue<VideoProcessingJobData>,
   ) {}
 
-  async analyze(url: string): Promise<AnalyzeResponse> {
+  async analyze(url: string, ageConsent?: boolean): Promise<AnalyzeResponse> {
     await this.urlValidator.validate(url);
 
     const timeoutMs = Number(this.config.get("ANALYZE_TIMEOUT_MS") ?? 60_000);
-    return this.mediaAnalyzer.analyze(url, timeoutMs);
+    return this.mediaAnalyzer.analyze(url, timeoutMs, ageConsent);
   }
 
   async createDownload(

@@ -1,4 +1,4 @@
-export { analyzeUrl } from "./extractor";
+export { analyzeUrl, detectPlatform } from "./extractor";
 export { fetchYtDlpInfo, fetchYtDlpFormat, runYtDlp } from "./yt-dlp";
 export type { YtDlpInfo, YtDlpFormat } from "./yt-dlp";
 export { buildFormatOptions, resolveFormatTarget, containerForFormatId, outputFileName } from "./format-mapper";
@@ -9,6 +9,7 @@ export {
   ExtractionTimeoutError,
   ExtractionFailedError,
   AuthenticationRequiredError,
+  AgeConsentRequiredError,
   FormatNotFoundError,
   FileTooLargeError,
 } from "./errors";

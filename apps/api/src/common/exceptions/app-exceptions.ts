@@ -62,6 +62,16 @@ export class AuthenticationRequiredException extends AppException {
   }
 }
 
+export class AgeConsentRequiredException extends AppException {
+  constructor() {
+    super(
+      "AGE_VERIFICATION_REQUIRED",
+      "Age verification consent is required to access this content.",
+      HttpStatus.FORBIDDEN,
+    );
+  }
+}
+
 export class FileTooLargeException extends AppException {
   constructor() {
     super(

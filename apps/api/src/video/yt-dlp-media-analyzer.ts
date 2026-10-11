@@ -8,6 +8,7 @@ import {
   ExtractionTimeoutError,
   ExtractionFailedError,
   AuthenticationRequiredError,
+  AgeConsentRequiredError,
 } from "@video-downloader/media-extractor";
 import { MediaAnalyzer } from "./media-analyzer.interface";
 import {
@@ -16,6 +17,7 @@ import {
   ProcessingTimeoutException,
   ProcessingFailedException,
   AuthenticationRequiredException,
+  AgeConsentRequiredException,
 } from "../common/exceptions/app-exceptions";
 
 @Injectable()
@@ -24,12 +26,12 @@ export class YtDlpMediaAnalyzer implements MediaAnalyzer {
 
   constructor(private readonly config: ConfigService) {}
 
-  async analyze(url: string, timeoutMs?: number): Promise<AnalyzeResponse> {
-    this.logger.log(`Starting analysis for URL: ${url}`);
+  async analyze(url: string, timeoutMs?: number, ageConsent?: boolean): Promise<AnalyzeResponse> {
+    this.logger.log(`Starting analysis for URL: ${url} (ageConsent: ${Boolean(ageConsent)})`);
     try {
       const cookiesPath = this.config.get<string>("YT_DLP_COOKIES");
-      const { response, raw } = await analyzeUrl(url, { timeoutMs, cookiesPath });
-      this.logger.log(`Analysis successful: "${raw.title}" (${raw.duration ?? 0}s). Found ${response.formats.length} supported formats.`);
+      const { response, raw } = await analyzeUrl(url, { timeoutMs, cookiesPath, ageConsent });
+      this.logger.log(`Analysis successful: "${raw.title || 'playlist'}" (${raw.duration ?? 0}s). Found ${response.formats.length} supported formats.`);
       return response;
     } catch (err) {
       this.logger.warn(
@@ -40,6 +42,7 @@ export class YtDlpMediaAnalyzer implements MediaAnalyzer {
       if (err instanceof UnsupportedSourceError) throw new UnsupportedSourceException();
       if (err instanceof VideoUnavailableError) throw new VideoUnavailableException();
       if (err instanceof ExtractionTimeoutError) throw new ProcessingTimeoutException();
+      if (err instanceof AgeConsentRequiredError) throw new AgeConsentRequiredException();
       if (err instanceof AuthenticationRequiredError) throw new AuthenticationRequiredException();
       if (err instanceof ExtractionFailedError) throw new ProcessingFailedException();
       throw new ProcessingFailedException();

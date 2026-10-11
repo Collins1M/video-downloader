@@ -51,11 +51,12 @@ export class VideoController {
   })
   @ApiResponse({ status: 201, description: "Video metadata and available formats." })
   @ApiResponse({ status: 400, description: "Missing or malformed url." })
+  @ApiResponse({ status: 403, description: "Age verification consent required or authentication required." })
   @ApiResponse({ status: 404, description: "The video couldn't be found or accessed." })
   @ApiResponse({ status: 422, description: "This video source isn't supported." })
   @ApiResponse({ status: 429, description: "Rate limit exceeded for this tier." })
   analyze(@Body() dto: AnalyzeRequestDto): Promise<AnalyzeResponse> {
-    return this.videoService.analyze(dto.url);
+    return this.videoService.analyze(dto.url, dto.ageConsent);
   }
 
   @Post("download")

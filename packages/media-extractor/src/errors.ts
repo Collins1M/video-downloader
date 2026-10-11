@@ -43,6 +43,15 @@ export class AuthenticationRequiredError extends Error {
   }
 }
 
+export class AgeConsentRequiredError extends Error {
+  detail?: string;
+  constructor(detail?: string) {
+    super("Age verification consent is required to access this content.");
+    this.name = "AgeConsentRequiredError";
+    this.detail = detail;
+  }
+}
+
 export class FormatNotFoundError extends Error {
   constructor() {
     super("The requested format is no longer available for this video.");
