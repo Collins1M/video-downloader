@@ -49,6 +49,13 @@ export async function runYtDlp(args: string[], options: RunYtDlpOptions): Promis
     finalArgs.push("--age-limit", "99");
   }
 
+  // Instagram Web API stealth headers
+  if (url && (url.includes("instagram.com") || url.includes("instagr.am"))) {
+    finalArgs.push("--add-header", "X-IG-App-ID: 936619743392459");
+    finalArgs.push("--add-header", "X-ASBD-ID: 198387");
+    finalArgs.push("--add-header", "X-IG-WWW-Claim: 0");
+  }
+
   finalArgs.push(...args);
 
   // Use the URL (usually the last arg) as the referer to bypass some 403 blocks
@@ -94,25 +101,33 @@ export async function runYtDlp(args: string[], options: RunYtDlpOptions): Promis
             reject(new UnsupportedSourceError(stderr));
             return;
           }
-          if (
-            lowerStderr.includes("sign in to confirm your age") ||
-            lowerStderr.includes("confirm your age") ||
-            lowerStderr.includes("age-restricted") ||
-            lowerStderr.includes("can't be seen by certain audiences") ||
-            lowerStderr.includes("isn't available to everyone")
-          ) {
-            if (!options.ageConsent) {
+
+          // If ageConsent was NOT passed yet, signal to prompt for age consent first
+          if (!options.ageConsent) {
+            if (
+              lowerStderr.includes("sign in to confirm your age") ||
+              lowerStderr.includes("confirm your age") ||
+              lowerStderr.includes("age-restricted") ||
+              lowerStderr.includes("can't be seen by certain audiences") ||
+              lowerStderr.includes("isn't available to everyone")
+            ) {
               reject(new AgeConsentRequiredError(stderr));
               return;
             }
           }
+
+          // If ageConsent WAS passed and content is still restricted to logged-in/private audiences,
+          // then Instagram/platform strictly requires a logged-in account.
           if (
             lowerStderr.includes("you need to log in") ||
-            lowerStderr.includes("use --cookies")
+            lowerStderr.includes("use --cookies") ||
+            lowerStderr.includes("isn't available to everyone") ||
+            lowerStderr.includes("can't be seen by certain audiences")
           ) {
             reject(new AuthenticationRequiredError(stderr));
             return;
           }
+
           if (
             lowerStderr.includes("video unavailable") ||
             lowerStderr.includes("private video") ||
@@ -179,16 +194,29 @@ export async function fetchYtDlpInfo(
 
   args.push("--", url);
 
-  const stdout = await runYtDlp(args, { timeoutMs, cookiesPath, ageConsent });
-
   try {
+    const stdout = await runYtDlp(args, { timeoutMs, cookiesPath, ageConsent });
     const info = JSON.parse(stdout) as YtDlpInfo;
     console.log(`[YtDlp] Successfully parsed JSON for ${info.id || info.title}. Type: ${info._type ?? 'single'}`);
     return info;
   } catch (err) {
-    console.error(`[YtDlp] Failed to parse JSON. Error: ${err}`);
-    console.error(`[YtDlp] Raw stdout snippet (first 500 chars): ${stdout.substring(0, 500)}`);
-    throw new ExtractionFailedError("yt-dlp returned non-JSON output");
+    // Try Instagram embed fallback if standard extraction fails
+    const instagramMatch = /instagram\.com\/(?:reel|p)\/([a-zA-Z0-9_-]+)/i.exec(url);
+    if (instagramMatch) {
+      const shortcode = instagramMatch[1];
+      const embedUrl = `https://www.instagram.com/p/${shortcode}/embed/captioned/`;
+      console.log(`[YtDlp] Attempting Instagram embed fallback for shortcode ${shortcode}: ${embedUrl}`);
+      try {
+        const fallbackArgs = ["--dump-single-json", "--no-warnings", "--no-check-certificates", "--", embedUrl];
+        const stdout = await runYtDlp(fallbackArgs, { timeoutMs, cookiesPath, ageConsent });
+        const info = JSON.parse(stdout) as YtDlpInfo;
+        console.log(`[YtDlp] Embed fallback successful for ${info.id || info.title}`);
+        return info;
+      } catch (fallbackErr) {
+        console.warn(`[YtDlp] Embed fallback failed: ${fallbackErr}`);
+      }
+    }
+    throw err;
   }
 }
 
