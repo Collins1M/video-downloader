@@ -23,7 +23,7 @@ export function detectPlatform(url: string, extractorKey?: string): PlatformType
   if (lowerUrl.includes("youtube.com") || lowerUrl.includes("youtu.be") || lowerKey.includes("youtube")) {
     return "youtube";
   }
-  if (lowerUrl.includes("pornhub.com") || lowerKey.includes("pornhub")) {
+  if (lowerUrl.includes("pornhub") || lowerKey.includes("pornhub")) {
     return "pornhub";
   }
   return "generic";

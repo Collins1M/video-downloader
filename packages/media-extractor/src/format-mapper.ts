@@ -26,11 +26,19 @@ export interface ResolvedGifTarget {
   videoFormatId: string;
 }
 
-export type ResolvedTarget = ResolvedVideoTarget | ResolvedAudioTarget | ResolvedGifTarget;
+export interface ResolvedImageTarget {
+  kind: "image";
+  container: "jpg";
+  imageFormatId: string;
+  imageUrl?: string;
+}
 
-export function containerForFormatId(formatId: string): "mp4" | "mp3" | "gif" {
+export type ResolvedTarget = ResolvedVideoTarget | ResolvedAudioTarget | ResolvedGifTarget | ResolvedImageTarget;
+
+export function containerForFormatId(formatId: string): "mp4" | "mp3" | "gif" | "jpg" {
   if (formatId.endsWith("-mp3")) return "mp3";
   if (formatId.endsWith("-gif")) return "gif";
+  if (formatId.endsWith("-jpg") || formatId.endsWith("-image") || formatId === "best-image") return "jpg";
   return "mp4";
 }
 
@@ -213,11 +221,44 @@ export function buildFormatOptions(info: YtDlpInfo): FormatOption[] {
     }
   }
 
+  const imageFormat = rawFormats.find(
+    (f) =>
+      f.format_id === "image" ||
+      ((!f.vcodec || f.vcodec === "none") &&
+        (!f.acodec || f.acodec === "none") &&
+        ["jpg", "jpeg", "png", "webp"].includes(f.ext?.toLowerCase() ?? "")),
+  );
+
+  if (imageFormat || (rawFormats.length === 0 && info.url)) {
+    options.push({
+      id: "best-image",
+      type: "image",
+      container: "jpg",
+      resolution: "HD Image",
+    });
+  }
+
   return options;
 }
 
 export function resolveFormatTarget(info: YtDlpInfo, formatId: string): ResolvedTarget {
   const formats = info.formats ?? [];
+
+  if (formatId === "best-image" || formatId === "best-jpg" || formatId === "image") {
+    const imageFormat = formats.find(
+      (f) =>
+        f.format_id === "image" ||
+        ((!f.vcodec || f.vcodec === "none") &&
+          (!f.acodec || f.acodec === "none") &&
+          ["jpg", "jpeg", "png", "webp"].includes(f.ext?.toLowerCase() ?? "")),
+    );
+    return {
+      kind: "image",
+      container: "jpg",
+      imageFormatId: imageFormat?.format_id ?? "image",
+      imageUrl: info.url || info.thumbnail,
+    };
+  }
 
   if (formatId === "best-mp4" || formatId === "best-gif") {
     const video = bestOverallVideoFormat(formats);

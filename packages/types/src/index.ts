@@ -3,7 +3,7 @@
 
 export * from "./theme";
 
-export type MediaKind = "video" | "audio" | "gif";
+export type MediaKind = "video" | "audio" | "gif" | "image";
 
 export type JobStatus =
   | "queued"

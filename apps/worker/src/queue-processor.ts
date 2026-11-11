@@ -77,42 +77,122 @@ export async function processVideoJob(job: Job<VideoProcessingJobData>): Promise
     if (target.kind === "video") {
       const videoTmp = safeTempFilePath(config.tempDir, downloadJobId, "video.tmp");
       intermediates.push(videoTmp);
-      await fetchYtDlpFormat(dbJob.sourceUrl, target.videoFormatId, videoTmp, FETCH_TIMEOUT_MS, config.ytDlpCookies);
-      await setProgress(40);
+      log.info({ videoFormatId: target.videoFormatId }, "Starting video stream download via yt-dlp (progress 10% -> 40%)");
+
+      const hasAudioStep = Boolean(target.audioFormatId);
+      const videoMaxProgress = hasAudioStep ? 40 : 60;
+
+      await fetchYtDlpFormat(
+        dbJob.sourceUrl,
+        target.videoFormatId,
+        videoTmp,
+        FETCH_TIMEOUT_MS,
+        config.ytDlpCookies,
+        false,
+        (p) => {
+          const mapped = Math.min(videoMaxProgress, Math.round(10 + (p / 100) * (videoMaxProgress - 10)));
+          setProgress(mapped);
+        },
+      );
+      log.info(`Video stream download finished. Updated progress to ${videoMaxProgress}%`);
+      await setProgress(videoMaxProgress);
 
       if (target.audioFormatId) {
         const audioTmp = safeTempFilePath(config.tempDir, downloadJobId, "audio.tmp");
         intermediates.push(audioTmp);
-        await fetchYtDlpFormat(dbJob.sourceUrl, target.audioFormatId, audioTmp, FETCH_TIMEOUT_MS, config.ytDlpCookies);
+        log.info({ audioFormatId: target.audioFormatId }, "Starting audio stream download via yt-dlp (progress 40% -> 60%)");
+
+        await fetchYtDlpFormat(
+          dbJob.sourceUrl,
+          target.audioFormatId,
+          audioTmp,
+          FETCH_TIMEOUT_MS,
+          config.ytDlpCookies,
+          false,
+          (p) => {
+            const mapped = Math.min(60, Math.round(40 + (p / 100) * 20));
+            setProgress(mapped);
+          },
+        );
+        log.info("Audio stream download finished. Updated progress to 60%");
         await setProgress(60);
 
+        log.info("Starting FFmpeg video+audio merging (progress 60% -> 99%)");
         await mergeVideoAudio(videoTmp, audioTmp, outputPath, info.duration, (p) =>
           setProgress(Math.min(99, 60 + Math.round(p * 0.35))),
         );
       } else {
+        log.info("Starting FFmpeg remuxing to MP4 (progress 40% -> 99%)");
         await remuxToMp4(videoTmp, outputPath, info.duration, (p) =>
-          setProgress(Math.min(99, 60 + Math.round(p * 0.35))),
+          setProgress(Math.min(99, 40 + Math.round(p * 0.55))),
         );
       }
     } else if (target.kind === "audio") {
       const audioTmp = safeTempFilePath(config.tempDir, downloadJobId, "audio.tmp");
       intermediates.push(audioTmp);
-      await fetchYtDlpFormat(dbJob.sourceUrl, target.audioFormatId, audioTmp, FETCH_TIMEOUT_MS, config.ytDlpCookies);
+      log.info({ audioFormatId: target.audioFormatId }, "Starting audio stream download via yt-dlp (progress 10% -> 50%)");
+
+      await fetchYtDlpFormat(
+        dbJob.sourceUrl,
+        target.audioFormatId,
+        audioTmp,
+        FETCH_TIMEOUT_MS,
+        config.ytDlpCookies,
+        false,
+        (p) => {
+          const mapped = Math.min(50, Math.round(10 + (p / 100) * 40));
+          setProgress(mapped);
+        },
+      );
+      log.info("Audio stream download finished. Updated progress to 50%");
       await setProgress(50);
 
+      log.info("Starting FFmpeg audio extraction to MP3 (progress 50% -> 99%)");
       await extractAudioToMp3(audioTmp, outputPath, target.bitrateKbps, info.duration, (p) =>
         setProgress(Math.min(99, 50 + Math.round(p * 0.45))),
       );
-    } else {
-      // GIF target
+    } else if (target.kind === "gif") {
       const videoTmp = safeTempFilePath(config.tempDir, downloadJobId, "video.tmp");
       intermediates.push(videoTmp);
-      await fetchYtDlpFormat(dbJob.sourceUrl, target.videoFormatId, videoTmp, FETCH_TIMEOUT_MS, config.ytDlpCookies);
+      log.info({ videoFormatId: target.videoFormatId }, "Starting video stream download for GIF via yt-dlp (progress 10% -> 50%)");
+
+      await fetchYtDlpFormat(
+        dbJob.sourceUrl,
+        target.videoFormatId,
+        videoTmp,
+        FETCH_TIMEOUT_MS,
+        config.ytDlpCookies,
+        false,
+        (p) => {
+          const mapped = Math.min(50, Math.round(10 + (p / 100) * 40));
+          setProgress(mapped);
+        },
+      );
+      log.info("Video stream download finished. Updated progress to 50%");
       await setProgress(50);
 
+      log.info("Starting FFmpeg conversion to GIF (progress 50% -> 99%)");
       await convertToGif(videoTmp, outputPath, info.duration, (p) =>
         setProgress(Math.min(99, 50 + Math.round(p * 0.45))),
       );
+    } else if (target.kind === "image") {
+      log.info({ format: dbJob.format }, "Starting image download (progress 10% -> 90%)");
+      const imageUrl = target.imageUrl || info.url || info.thumbnail;
+      if (imageUrl) {
+        const res = await fetch(imageUrl);
+        if (!res.ok) throw new ExtractionFailedError(`Failed to fetch image: HTTP ${res.status}`);
+        const buffer = Buffer.from(await res.arrayBuffer());
+        await fs.writeFile(outputPath, buffer);
+      } else {
+        await fetchYtDlpFormat(
+          dbJob.sourceUrl,
+          target.imageFormatId,
+          outputPath,
+          FETCH_TIMEOUT_MS,
+          config.ytDlpCookies,
+        );
+      }
+      await setProgress(90);
     }
 
     // Post-download size enforcement (Section 13/14). Sources that don't

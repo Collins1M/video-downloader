@@ -1,4 +1,4 @@
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { promises as fs } from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
@@ -109,7 +109,9 @@ export async function runYtDlp(args: string[], options: RunYtDlpOptions): Promis
               lowerStderr.includes("confirm your age") ||
               lowerStderr.includes("age-restricted") ||
               lowerStderr.includes("can't be seen by certain audiences") ||
-              lowerStderr.includes("isn't available to everyone")
+              lowerStderr.includes("isn't available to everyone") ||
+              lowerStderr.includes("redirection detected") ||
+              lowerStderr.includes("require login")
             ) {
               reject(new AgeConsentRequiredError(stderr));
               return;
@@ -156,7 +158,7 @@ export async function runYtDlp(args: string[], options: RunYtDlpOptions): Promis
 }
 
 async function ensureCookieFile(url: string, userCookiesPath?: string, ageConsent?: boolean): Promise<string | undefined> {
-  const isPornhub = url && url.includes("pornhub.com");
+  const isPornhub = url && url.includes("pornhub");
   if (!isPornhub && !userCookiesPath && !ageConsent) return undefined;
 
   let content = "# Netscape HTTP Cookie File\n";
@@ -172,6 +174,7 @@ async function ensureCookieFile(url: string, userCookiesPath?: string, ageConsen
 
   if (isPornhub || ageConsent) {
     content += ".pornhub.com\tTRUE\t/\tFALSE\t2147483647\tage_verified\t1\n";
+    content += ".pornhub.org\tTRUE\t/\tFALSE\t2147483647\tage_verified\t1\n";
     content += ".youtube.com\tTRUE\t/\tFALSE\t2147483647\tST-1393685324\t1\n";
   }
 
@@ -196,20 +199,37 @@ export async function fetchYtDlpInfo(
 
   try {
     const stdout = await runYtDlp(args, { timeoutMs, cookiesPath, ageConsent });
-    const info = JSON.parse(stdout) as YtDlpInfo;
+    let info: YtDlpInfo;
+    try {
+      info = JSON.parse(stdout) as YtDlpInfo;
+    } catch {
+      throw new ExtractionFailedError("yt-dlp returned non-JSON output");
+    }
     console.log(`[YtDlp] Successfully parsed JSON for ${info.id || info.title}. Type: ${info._type ?? 'single'}`);
     return info;
   } catch (err) {
-    // Try Instagram embed fallback if standard extraction fails
+    // If standard extraction failed or returned "there is no video in this post", try Instagram image extraction
     const instagramMatch = /instagram\.com\/(?:reel|p)\/([a-zA-Z0-9_-]+)/i.exec(url);
     if (instagramMatch) {
+      console.log(`[YtDlp] Attempting Instagram image post extraction for ${url}...`);
+      const imgInfo = await fetchInstagramImagePost(url);
+      if (imgInfo) {
+        console.log(`[YtDlp] Instagram image extraction successful for ${imgInfo.id}`);
+        return imgInfo;
+      }
+
       const shortcode = instagramMatch[1];
       const embedUrl = `https://www.instagram.com/p/${shortcode}/embed/captioned/`;
       console.log(`[YtDlp] Attempting Instagram embed fallback for shortcode ${shortcode}: ${embedUrl}`);
       try {
         const fallbackArgs = ["--dump-single-json", "--no-warnings", "--no-check-certificates", "--", embedUrl];
         const stdout = await runYtDlp(fallbackArgs, { timeoutMs, cookiesPath, ageConsent });
-        const info = JSON.parse(stdout) as YtDlpInfo;
+        let info: YtDlpInfo;
+        try {
+          info = JSON.parse(stdout) as YtDlpInfo;
+        } catch {
+          throw new ExtractionFailedError("yt-dlp returned non-JSON output");
+        }
         console.log(`[YtDlp] Embed fallback successful for ${info.id || info.title}`);
         return info;
       } catch (fallbackErr) {
@@ -220,6 +240,235 @@ export async function fetchYtDlpInfo(
   }
 }
 
+export async function fetchInstagramImagePost(url: string): Promise<YtDlpInfo | null> {
+  const match = /instagram\.com\/(?:p|reel)\/([a-zA-Z0-9_-]+)/i.exec(url);
+  if (!match) return null;
+
+  const shortcode = match[1];
+  const postUrl = `https://www.instagram.com/p/${shortcode}/`;
+
+  const userAgents = [
+    "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)",
+    "Twitterbot/1.0",
+    "Googlebot/2.1 (+http://www.google.com/bot.html)",
+  ];
+
+  for (const ua of userAgents) {
+    try {
+      const res = await fetch(postUrl, {
+        headers: {
+          "User-Agent": ua,
+          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+          "Accept-Language": "en-US,en;q=0.9",
+        },
+      });
+
+      if (!res.ok) continue;
+
+      const html = await res.text();
+
+      const ogImgMatch =
+        html.match(/<meta[^>]+property="og:image"[^>]+content="([^"]+)"/i) ||
+        html.match(/<meta[^>]+content="([^"]+)"[^>]+property="og:image"/i);
+
+      if (!ogImgMatch) continue;
+
+      const imageUrl = ogImgMatch[1].replace(/&amp;/g, "&");
+
+      let title = "Instagram Photo";
+      const ogTitleMatch = html.match(/<meta[^>]+property="og:title"[^>]+content="([^"]+)"/i);
+      if (ogTitleMatch) {
+        title = decodeHtmlEntities(ogTitleMatch[1]);
+      }
+
+      console.log(`[InstagramImageExtractor] Extracted image for ${shortcode}`);
+
+      return {
+        id: shortcode,
+        title,
+        thumbnail: imageUrl,
+        duration: 0,
+        webpage_url: postUrl,
+        url: imageUrl,
+        extractor_key: "Instagram",
+        extractor: "instagram",
+        formats: [
+          {
+            format_id: "image",
+            ext: "jpg",
+            height: 1080,
+            vcodec: "none",
+            acodec: "none",
+            protocol: "https",
+          },
+        ],
+      };
+    } catch (err) {
+      console.warn(`[InstagramImageExtractor] Failed with UA ${ua}: ${err}`);
+    }
+  }
+
+  return null;
+}
+
+function decodeHtmlEntities(str: string): string {
+  return str
+    .replace(/&quot;/g, '"')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
+    .replace(/&#([0-9]+);/g, (_, dec) => String.fromCodePoint(parseInt(dec, 10)))
+    .trim();
+}
+
+
+export async function runYtDlpWithProgress(
+  args: string[],
+  options: RunYtDlpOptions,
+  onProgress?: (percent: number) => void,
+): Promise<string> {
+  const url = args[args.length - 1];
+  const finalArgs = [...STEALTH_ARGS];
+
+  if (options.ageConsent) {
+    finalArgs.push("--age-limit", "99");
+  }
+
+  if (url && (url.includes("instagram.com") || url.includes("instagr.am"))) {
+    finalArgs.push("--add-header", "X-IG-App-ID: 936619743392459");
+    finalArgs.push("--add-header", "X-ASBD-ID: 198387");
+    finalArgs.push("--add-header", "X-IG-WWW-Claim: 0");
+  }
+
+  finalArgs.push(...args);
+
+  if (url?.startsWith("http")) {
+    finalArgs.unshift("--referer", url);
+  }
+
+  const tempCookiesPath = await ensureCookieFile(url, options.cookiesPath, options.ageConsent);
+  if (tempCookiesPath) {
+    finalArgs.unshift("--cookies", tempCookiesPath);
+  }
+
+  const startTime = Date.now();
+  console.log(`[YtDlp] Executing with progress: yt-dlp ${finalArgs.join(" ")}`);
+
+  try {
+    return await new Promise<string>((resolvePromise, reject) => {
+      const child = spawn("yt-dlp", finalArgs, {
+        timeout: options.timeoutMs,
+      });
+
+      let stdoutData = "";
+      let stderrData = "";
+
+      child.stdout.on("data", (chunk: Buffer) => {
+        const text = chunk.toString("utf-8");
+        stdoutData += text;
+
+        if (onProgress) {
+          const lines = text.split(/[\r\n]+/);
+          for (const line of lines) {
+            const match = /\[download\]\s+([\d.]+)/i.exec(line);
+            if (match) {
+              const parsed = parseFloat(match[1]);
+              if (!isNaN(parsed)) {
+                onProgress(parsed);
+              }
+            }
+          }
+        }
+      });
+
+      child.stderr.on("data", (chunk: Buffer) => {
+        stderrData += chunk.toString("utf-8");
+      });
+
+      let timedOut = false;
+      const timer = setTimeout(() => {
+        timedOut = true;
+        child.kill("SIGTERM");
+      }, options.timeoutMs);
+
+      child.on("error", (err) => {
+        clearTimeout(timer);
+        reject(new ExtractionFailedError(err.message));
+      });
+
+      child.on("close", (code, signal) => {
+        clearTimeout(timer);
+        const duration = Date.now() - startTime;
+        console.log(`[YtDlp] Finished in ${duration}ms (code ${code})`);
+
+        if (code === 0) {
+          resolvePromise(stdoutData);
+          return;
+        }
+
+        console.error(`[YtDlp] Command failed after ${duration}ms:`, stderrData);
+
+        if (timedOut || signal === "SIGTERM") {
+          reject(new ExtractionTimeoutError(stderrData));
+          return;
+        }
+
+        const lowerStderr = stderrData.toLowerCase();
+        if (lowerStderr.includes("unsupported url")) {
+          reject(new UnsupportedSourceError(stderrData));
+          return;
+        }
+
+        if (!options.ageConsent) {
+          if (
+            lowerStderr.includes("sign in to confirm your age") ||
+            lowerStderr.includes("confirm your age") ||
+            lowerStderr.includes("age-restricted") ||
+            lowerStderr.includes("can't be seen by certain audiences") ||
+            lowerStderr.includes("isn't available to everyone") ||
+            lowerStderr.includes("redirection detected") ||
+            lowerStderr.includes("require login")
+          ) {
+            reject(new AgeConsentRequiredError(stderrData));
+            return;
+          }
+        }
+
+        if (
+          lowerStderr.includes("you need to log in") ||
+          lowerStderr.includes("use --cookies") ||
+          lowerStderr.includes("isn't available to everyone") ||
+          lowerStderr.includes("can't be seen by certain audiences")
+        ) {
+          reject(new AuthenticationRequiredError(stderrData));
+          return;
+        }
+
+        if (
+          lowerStderr.includes("video unavailable") ||
+          lowerStderr.includes("private video") ||
+          lowerStderr.includes("this video is unavailable") ||
+          lowerStderr.includes("content isn't available") ||
+          lowerStderr.includes("redirection detected") ||
+          lowerStderr.includes("model is in a private show") ||
+          lowerStderr.includes("room is currently offline")
+        ) {
+          reject(new VideoUnavailableError(stderrData));
+          return;
+        }
+
+        reject(new ExtractionFailedError(stderrData));
+      });
+    });
+  } finally {
+    if (tempCookiesPath) {
+      await fs.unlink(tempCookiesPath).catch((err) => {
+        console.warn(`[YtDlp] Failed to delete temp cookies file ${tempCookiesPath}: ${err}`);
+      });
+    }
+  }
+}
 
 export async function fetchYtDlpFormat(
   url: string,
@@ -228,34 +477,39 @@ export async function fetchYtDlpFormat(
   timeoutMs: number,
   cookiesPath?: string,
   ageConsent?: boolean,
+  onProgress?: (percent: number) => void,
 ): Promise<void> {
   const formatSpec =
     ytDlpFormatId.includes("/") || ytDlpFormatId === "best" || ytDlpFormatId === "b"
       ? ytDlpFormatId
       : `${ytDlpFormatId}/best`;
 
-  await runYtDlp(
-    [
-      "-f",
-      formatSpec,
-      "-o",
-      outputPath,
-      "--no-progress",
-      "--no-warnings",
-      "--no-playlist",
-      "--no-check-certificates",
-      "--no-part",
-      "--retries",
-      "10",
-      "--fragment-retries",
-      "10",
-      "--concurrent-fragments",
-      "5",
-      "--",
-      url,
-    ],
-    { timeoutMs, cookiesPath, ageConsent },
-  );
+  const args = [
+    "-f",
+    formatSpec,
+    "-o",
+    outputPath,
+    "--newline",
+    "--no-warnings",
+    "--no-playlist",
+    "--no-check-certificates",
+    "--no-part",
+    "--retries",
+    "10",
+    "--fragment-retries",
+    "10",
+    "--concurrent-fragments",
+    "5",
+    "--",
+    url,
+  ];
+
+  if (onProgress) {
+    await runYtDlpWithProgress(args, { timeoutMs, cookiesPath, ageConsent }, onProgress);
+  } else {
+    args.unshift("--no-progress");
+    await runYtDlp(args, { timeoutMs, cookiesPath, ageConsent });
+  }
 }
 
 
