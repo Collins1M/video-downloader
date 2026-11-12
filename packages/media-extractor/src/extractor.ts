@@ -29,10 +29,16 @@ export function detectPlatform(url: string, extractorKey?: string): PlatformType
   return "generic";
 }
 
+export function sanitizeUrl(inputUrl: string): string {
+  const match = /https?:\/\/[^\s]+/i.exec(inputUrl.trim());
+  return match ? match[0] : inputUrl.trim();
+}
+
 export async function analyzeUrl(
-  url: string,
+  rawUrl: string,
   options: AnalyzeOptions = {},
 ): Promise<{ response: AnalyzeResponse; raw: YtDlpInfo }> {
+  const url = sanitizeUrl(rawUrl);
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   console.log(`[Extractor] Fetching raw info for ${url} (timeout: ${timeoutMs}ms, ageConsent: ${Boolean(options.ageConsent)})`);
   const info = await fetchYtDlpInfo(url, timeoutMs, options.cookiesPath, true, options.ageConsent);

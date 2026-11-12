@@ -160,7 +160,6 @@ export class VideoController {
 
     const stream = createReadStream(path);
     stream.on("error", cleanup);
-    res.on("close", cleanup);
     res.on("finish", cleanup);
 
     stream.pipe(res);

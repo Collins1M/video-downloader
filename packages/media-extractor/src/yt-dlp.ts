@@ -41,8 +41,15 @@ const STEALTH_ARGS = [
   "--no-check-certificates",
 ];
 
+export function sanitizeUrl(inputUrl: string): string {
+  const match = /https?:\/\/[^\s]+/i.exec(inputUrl.trim());
+  return match ? match[0] : inputUrl.trim();
+}
+
 export async function runYtDlp(args: string[], options: RunYtDlpOptions): Promise<string> {
-  const url = args[args.length - 1];
+  const rawUrl = args[args.length - 1];
+  const url = sanitizeUrl(rawUrl);
+  args[args.length - 1] = url;
   const finalArgs = [...STEALTH_ARGS];
 
   if (options.ageConsent) {
@@ -54,6 +61,10 @@ export async function runYtDlp(args: string[], options: RunYtDlpOptions): Promis
     finalArgs.push("--add-header", "X-IG-App-ID: 936619743392459");
     finalArgs.push("--add-header", "X-ASBD-ID: 198387");
     finalArgs.push("--add-header", "X-IG-WWW-Claim: 0");
+  }
+
+  if (url && url.includes("pornhub")) {
+    finalArgs.push("--add-header", "Cookie: age_verified=1; accessType=1; hasVisited=1");
   }
 
   finalArgs.push(...args);
@@ -124,7 +135,8 @@ export async function runYtDlp(args: string[], options: RunYtDlpOptions): Promis
             lowerStderr.includes("you need to log in") ||
             lowerStderr.includes("use --cookies") ||
             lowerStderr.includes("isn't available to everyone") ||
-            lowerStderr.includes("can't be seen by certain audiences")
+            lowerStderr.includes("can't be seen by certain audiences") ||
+            lowerStderr.includes("redirection detected")
           ) {
             reject(new AuthenticationRequiredError(stderr));
             return;
@@ -135,7 +147,6 @@ export async function runYtDlp(args: string[], options: RunYtDlpOptions): Promis
             lowerStderr.includes("private video") ||
             lowerStderr.includes("this video is unavailable") ||
             lowerStderr.includes("content isn't available") ||
-            lowerStderr.includes("redirection detected") ||
             lowerStderr.includes("model is in a private show") ||
             lowerStderr.includes("room is currently offline")
           ) {
@@ -174,7 +185,11 @@ async function ensureCookieFile(url: string, userCookiesPath?: string, ageConsen
 
   if (isPornhub || ageConsent) {
     content += ".pornhub.com\tTRUE\t/\tFALSE\t2147483647\tage_verified\t1\n";
+    content += ".pornhub.com\tTRUE\t/\tFALSE\t2147483647\taccessType\t1\n";
+    content += ".pornhub.com\tTRUE\t/\tFALSE\t2147483647\thasVisited\t1\n";
     content += ".pornhub.org\tTRUE\t/\tFALSE\t2147483647\tage_verified\t1\n";
+    content += ".pornhub.org\tTRUE\t/\tFALSE\t2147483647\taccessType\t1\n";
+    content += ".pornhub.org\tTRUE\t/\tFALSE\t2147483647\thasVisited\t1\n";
     content += ".youtube.com\tTRUE\t/\tFALSE\t2147483647\tST-1393685324\t1\n";
   }
 
@@ -268,32 +283,23 @@ export async function fetchInstagramImagePost(url: string): Promise<YtDlpInfo | 
       const html = await res.text();
 
       const imageUrls: string[] = [];
+      const uniqueBaseUrls = new Set<string>();
 
-      const ogImageRegex = /<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/gi;
-      let matchOg;
-      while ((matchOg = ogImageRegex.exec(html)) !== null) {
-        const img = matchOg[1].replace(/&amp;/g, "&");
-        if (img && !imageUrls.includes(img)) {
-          imageUrls.push(img);
-        }
-      }
-
-      const ogImageRegexRev = /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/gi;
-      while ((matchOg = ogImageRegexRev.exec(html)) !== null) {
-        const img = matchOg[1].replace(/&amp;/g, "&");
-        if (img && !imageUrls.includes(img)) {
-          imageUrls.push(img);
-        }
-      }
-
-      const allImageMatches = [...html.matchAll(/(https:\/\/[^"'\s]+?cdninstagram\.com\/v\/(?:t51\.82787-15|t39\.30808-6)\/[^"'\s]+?\.(?:jpg|jpeg|png|webp)[^"'\s]*)/gi)];
+      const allImageMatches = [...html.matchAll(/(https:\/\/[^"'\s\\]+?cdninstagram\.com\/v\/[^"'\s\\]+?\.(?:jpg|jpeg|png|webp)[^"'\s\\]*)/gi)];
       for (const m of allImageMatches) {
         let clean = m[1].replace(/\\u0026/g, "&").replace(/\\/g, "").replace(/&amp;/g, "&");
-        if (!clean.includes("p150x150") && !clean.includes("p240x240") && !clean.includes("p320x320") && !clean.includes("p480x480") && !clean.includes("p640x640") && !clean.includes("p720x720")) {
-          const baseMatch = /(https:\/\/[^?]+?\.(?:jpg|jpeg|png|webp))/i.exec(clean);
-          const imgUrl = baseMatch ? baseMatch[1] : clean.split("?")[0];
-          if (imgUrl && !imageUrls.includes(imgUrl)) {
-            imageUrls.push(imgUrl);
+
+        if (clean.includes("t51.2885-19") || clean.includes("t51.82787-19") || clean.includes("rsrc.php")) continue;
+        if (clean.includes("p150x150") || clean.includes("p240x240") || clean.includes("p320x320") || clean.includes("p480x480") || clean.includes("p640x640") || clean.includes("p720x720")) continue;
+
+        const baseMatch = /(https:\/\/[^?]+?\.(?:jpg|jpeg|png|webp))/i.exec(clean);
+        if (baseMatch) {
+          const imgUrl = baseMatch[1];
+          if (imgUrl.includes("_n.jpg") || imgUrl.includes("_n.png") || imgUrl.includes("_n.webp") || imgUrl.includes("t51.82787-15") || imgUrl.includes("t39.30808-6")) {
+            if (!uniqueBaseUrls.has(imgUrl)) {
+              uniqueBaseUrls.add(imgUrl);
+              imageUrls.push(clean);
+            }
           }
         }
       }
@@ -315,12 +321,12 @@ export async function fetchInstagramImagePost(url: string): Promise<YtDlpInfo | 
         title = decodeHtmlEntities(ogTitleMatch[1]);
       }
 
-      console.log(`[InstagramImageExtractor] Extracted ${imageUrls.length} image(s) for ${shortcode}`);
+      console.log(`[InstagramImageExtractor] Extracted ${imageUrls.length} unique carousel image(s) for ${shortcode}`);
 
       if (imageUrls.length > 1) {
         const entries: YtDlpInfo[] = imageUrls.map((imgUrl, index) => ({
           id: `${shortcode}-${index + 1}`,
-          title: `${title} (${index + 1}/${imageUrls.length})`,
+          title: `${title} (Slide ${index + 1}/${imageUrls.length})`,
           thumbnail: imgUrl,
           duration: 0,
           webpage_url: postUrl,
