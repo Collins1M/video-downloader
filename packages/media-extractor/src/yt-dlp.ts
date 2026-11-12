@@ -267,13 +267,35 @@ export async function fetchInstagramImagePost(url: string): Promise<YtDlpInfo | 
 
       const html = await res.text();
 
-      const ogImgMatch =
-        html.match(/<meta[^>]+property="og:image"[^>]+content="([^"]+)"/i) ||
-        html.match(/<meta[^>]+content="([^"]+)"[^>]+property="og:image"/i);
+      const imageUrls: string[] = [];
 
-      if (!ogImgMatch) continue;
+      const ogImageRegex = /<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/gi;
+      let matchOg;
+      while ((matchOg = ogImageRegex.exec(html)) !== null) {
+        const img = matchOg[1].replace(/&amp;/g, "&");
+        if (img && !imageUrls.includes(img)) {
+          imageUrls.push(img);
+        }
+      }
 
-      const imageUrl = ogImgMatch[1].replace(/&amp;/g, "&");
+      const ogImageRegexRev = /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/gi;
+      while ((matchOg = ogImageRegexRev.exec(html)) !== null) {
+        const img = matchOg[1].replace(/&amp;/g, "&");
+        if (img && !imageUrls.includes(img)) {
+          imageUrls.push(img);
+        }
+      }
+
+      if (imageUrls.length === 0) {
+        const ogImgMatch =
+          html.match(/<meta[^>]+property="og:image"[^>]+content="([^"]+)"/i) ||
+          html.match(/<meta[^>]+content="([^"]+)"[^>]+property="og:image"/i);
+        if (ogImgMatch) {
+          imageUrls.push(ogImgMatch[1].replace(/&amp;/g, "&"));
+        }
+      }
+
+      if (imageUrls.length === 0) continue;
 
       let title = "Instagram Photo";
       const ogTitleMatch = html.match(/<meta[^>]+property="og:title"[^>]+content="([^"]+)"/i);
@@ -281,8 +303,55 @@ export async function fetchInstagramImagePost(url: string): Promise<YtDlpInfo | 
         title = decodeHtmlEntities(ogTitleMatch[1]);
       }
 
-      console.log(`[InstagramImageExtractor] Extracted image for ${shortcode}`);
+      console.log(`[InstagramImageExtractor] Extracted ${imageUrls.length} image(s) for ${shortcode}`);
 
+      if (imageUrls.length > 1) {
+        const entries: YtDlpInfo[] = imageUrls.map((imgUrl, index) => ({
+          id: `${shortcode}-${index + 1}`,
+          title: `${title} (${index + 1}/${imageUrls.length})`,
+          thumbnail: imgUrl,
+          duration: 0,
+          webpage_url: postUrl,
+          url: imgUrl,
+          extractor_key: "Instagram",
+          extractor: "instagram",
+          formats: [
+            {
+              format_id: `image-${index + 1}`,
+              ext: "jpg",
+              height: 1080,
+              vcodec: "none",
+              acodec: "none",
+              protocol: "https",
+            },
+          ],
+        }));
+
+        return {
+          id: shortcode,
+          title,
+          thumbnail: imageUrls[0],
+          duration: 0,
+          webpage_url: postUrl,
+          url: imageUrls[0],
+          extractor_key: "Instagram",
+          extractor: "instagram",
+          _type: "playlist",
+          entries,
+          formats: [
+            {
+              format_id: "image-1",
+              ext: "jpg",
+              height: 1080,
+              vcodec: "none",
+              acodec: "none",
+              protocol: "https",
+            },
+          ],
+        };
+      }
+
+      const imageUrl = imageUrls[0];
       return {
         id: shortcode,
         title,
