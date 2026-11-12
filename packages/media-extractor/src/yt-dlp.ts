@@ -286,6 +286,18 @@ export async function fetchInstagramImagePost(url: string): Promise<YtDlpInfo | 
         }
       }
 
+      const allImageMatches = [...html.matchAll(/(https:\/\/[^"'\s]+?cdninstagram\.com\/v\/(?:t51\.82787-15|t39\.30808-6)\/[^"'\s]+?\.(?:jpg|jpeg|png|webp)[^"'\s]*)/gi)];
+      for (const m of allImageMatches) {
+        let clean = m[1].replace(/\\u0026/g, "&").replace(/\\/g, "").replace(/&amp;/g, "&");
+        if (!clean.includes("p150x150") && !clean.includes("p240x240") && !clean.includes("p320x320") && !clean.includes("p480x480") && !clean.includes("p640x640") && !clean.includes("p720x720")) {
+          const baseMatch = /(https:\/\/[^?]+?\.(?:jpg|jpeg|png|webp))/i.exec(clean);
+          const imgUrl = baseMatch ? baseMatch[1] : clean.split("?")[0];
+          if (imgUrl && !imageUrls.includes(imgUrl)) {
+            imageUrls.push(imgUrl);
+          }
+        }
+      }
+
       if (imageUrls.length === 0) {
         const ogImgMatch =
           html.match(/<meta[^>]+property="og:image"[^>]+content="([^"]+)"/i) ||
