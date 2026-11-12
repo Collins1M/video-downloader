@@ -202,7 +202,7 @@ export async function fetchYtDlpInfo(
     let info: YtDlpInfo;
     try {
       info = JSON.parse(stdout) as YtDlpInfo;
-    } catch {
+    } catch (err) {
       throw new ExtractionFailedError("yt-dlp returned non-JSON output");
     }
     console.log(`[YtDlp] Successfully parsed JSON for ${info.id || info.title}. Type: ${info._type ?? 'single'}`);
@@ -227,7 +227,7 @@ export async function fetchYtDlpInfo(
         let info: YtDlpInfo;
         try {
           info = JSON.parse(stdout) as YtDlpInfo;
-        } catch {
+        } catch (fallbackErr) {
           throw new ExtractionFailedError("yt-dlp returned non-JSON output");
         }
         console.log(`[YtDlp] Embed fallback successful for ${info.id || info.title}`);

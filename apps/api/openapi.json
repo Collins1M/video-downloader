@@ -1,6 +1,21 @@
 {
   "openapi": "3.0.0",
   "paths": {
+    "/api": {
+      "get": {
+        "operationId": "AppController_getWelcome",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Welcome to the Video Downloader API."
+          }
+        },
+        "summary": "API Welcome Message",
+        "tags": [
+          "health"
+        ]
+      }
+    },
     "/api/video/analyze": {
       "post": {
         "description": "Fetches metadata for the given video page (title, thumbnail, duration) and the set of formats available to download. Does not start a download or create a job.",
@@ -22,6 +37,9 @@
           },
           "400": {
             "description": "Missing or malformed url."
+          },
+          "403": {
+            "description": "Age verification consent required or authentication required."
           },
           "404": {
             "description": "The video couldn't be found or accessed."
@@ -283,6 +301,11 @@
             "description": "The video page URL to analyze for downloadable formats.",
             "example": "https://example.com/watch?v=abc123",
             "maxLength": 2048
+          },
+          "ageConsent": {
+            "type": "boolean",
+            "description": "Set to true when user has confirmed age verification consent for restricted content.",
+            "example": true
           }
         },
         "required": [
