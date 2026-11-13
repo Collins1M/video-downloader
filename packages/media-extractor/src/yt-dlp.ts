@@ -148,7 +148,8 @@ export async function runYtDlp(args: string[], options: RunYtDlpOptions): Promis
             lowerStderr.includes("this video is unavailable") ||
             lowerStderr.includes("content isn't available") ||
             lowerStderr.includes("model is in a private show") ||
-            lowerStderr.includes("room is currently offline")
+            lowerStderr.includes("room is currently offline") ||
+            lowerStderr.includes("no video could be found in this tweet")
           ) {
             reject(new VideoUnavailableError(stderr));
             return;
@@ -223,6 +224,16 @@ export async function fetchYtDlpInfo(
     console.log(`[YtDlp] Successfully parsed JSON for ${info.id || info.title}. Type: ${info._type ?? 'single'}`);
     return info;
   } catch (err) {
+    const twitterMatch = /(?:twitter\.com|x\.com)\/[a-zA-Z0-9_]+\/status\/([0-9]+)/i.exec(url);
+    if (twitterMatch) {
+      console.log(`[YtDlp] Attempting Twitter/X image post extraction for ${url}...`);
+      const imgInfo = await fetchTwitterImagePost(url);
+      if (imgInfo) {
+        console.log(`[YtDlp] Twitter image extraction successful for ${imgInfo.id}`);
+        return imgInfo;
+      }
+    }
+
     // If standard extraction failed or returned "there is no video in this post", try Instagram image extraction
     const instagramMatch = /instagram\.com\/(?:reel|p)\/([a-zA-Z0-9_-]+)/i.exec(url);
     if (instagramMatch) {
@@ -283,33 +294,31 @@ export async function fetchInstagramImagePost(url: string): Promise<YtDlpInfo | 
       const html = await res.text();
 
       const imageUrls: string[] = [];
-      const uniqueBaseUrls = new Set<string>();
 
-      const allImageMatches = [...html.matchAll(/(https:\/\/[^"'\s\\]+?cdninstagram\.com\/v\/[^"'\s\\]+?\.(?:jpg|jpeg|png|webp)[^"'\s\\]*)/gi)];
-      for (const m of allImageMatches) {
-        let clean = m[1].replace(/\\u0026/g, "&").replace(/\\/g, "").replace(/&amp;/g, "&");
+      const ogImageRegex = /<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/gi;
+      let matchOg;
+      while ((matchOg = ogImageRegex.exec(html)) !== null) {
+        const img = matchOg[1].replace(/&amp;/g, "&").replace(/\\u0026/g, "&");
+        if (img && !imageUrls.includes(img)) {
+          imageUrls.push(img);
+        }
+      }
 
-        if (clean.includes("t51.2885-19") || clean.includes("t51.82787-19") || clean.includes("rsrc.php")) continue;
-        if (clean.includes("p150x150") || clean.includes("p240x240") || clean.includes("p320x320") || clean.includes("p480x480") || clean.includes("p640x640") || clean.includes("p720x720")) continue;
-
-        const baseMatch = /(https:\/\/[^?]+?\.(?:jpg|jpeg|png|webp))/i.exec(clean);
-        if (baseMatch) {
-          const imgUrl = baseMatch[1];
-          if (imgUrl.includes("_n.jpg") || imgUrl.includes("_n.png") || imgUrl.includes("_n.webp") || imgUrl.includes("t51.82787-15") || imgUrl.includes("t39.30808-6")) {
-            if (!uniqueBaseUrls.has(imgUrl)) {
-              uniqueBaseUrls.add(imgUrl);
-              imageUrls.push(clean);
-            }
-          }
+      const ogImageRegexRev = /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/gi;
+      while ((matchOg = ogImageRegexRev.exec(html)) !== null) {
+        const img = matchOg[1].replace(/&amp;/g, "&").replace(/\\u0026/g, "&");
+        if (img && !imageUrls.includes(img)) {
+          imageUrls.push(img);
         }
       }
 
       if (imageUrls.length === 0) {
-        const ogImgMatch =
-          html.match(/<meta[^>]+property="og:image"[^>]+content="([^"]+)"/i) ||
-          html.match(/<meta[^>]+content="([^"]+)"[^>]+property="og:image"/i);
-        if (ogImgMatch) {
-          imageUrls.push(ogImgMatch[1].replace(/&amp;/g, "&"));
+        const twitterImageRegex = /<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["']/gi;
+        while ((matchOg = twitterImageRegex.exec(html)) !== null) {
+          const img = matchOg[1].replace(/&amp;/g, "&").replace(/\\u0026/g, "&");
+          if (img && !imageUrls.includes(img)) {
+            imageUrls.push(img);
+          }
         }
       }
 
@@ -400,6 +409,135 @@ export async function fetchInstagramImagePost(url: string): Promise<YtDlpInfo | 
   return null;
 }
 
+export async function fetchTwitterImagePost(url: string): Promise<YtDlpInfo | null> {
+  const match = /(?:twitter\.com|x\.com)\/[a-zA-Z0-9_]+\/status\/([0-9]+)/i.exec(url);
+  if (!match) return null;
+
+  const tweetId = match[1];
+
+  const userAgents = [
+    "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)",
+    "Twitterbot/1.0",
+    "Googlebot/2.1 (+http://www.google.com/bot.html)",
+  ];
+
+  for (const ua of userAgents) {
+    try {
+      const res = await fetch(url, {
+        headers: {
+          "User-Agent": ua,
+          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+          "Accept-Language": "en-US,en;q=0.9",
+        },
+      });
+
+      if (!res.ok) continue;
+
+      const html = await res.text();
+      const imageUrls: string[] = [];
+
+      const ogImageRegex = /<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/gi;
+      let matchOg;
+      while ((matchOg = ogImageRegex.exec(html)) !== null) {
+        const img = matchOg[1].replace(/&amp;/g, "&").replace(/\\u0026/g, "&");
+        if (img && !imageUrls.includes(img) && !img.includes("profile_images")) {
+          imageUrls.push(img);
+        }
+      }
+
+      const twitterImageRegex = /<meta[^>]+name=["']twitter:image(?:[0-9])?["'][^>]+content=["']([^"']+)["']/gi;
+      while ((matchOg = twitterImageRegex.exec(html)) !== null) {
+        const img = matchOg[1].replace(/&amp;/g, "&").replace(/\\u0026/g, "&");
+        if (img && !imageUrls.includes(img) && !img.includes("profile_images")) {
+          imageUrls.push(img);
+        }
+      }
+
+      if (imageUrls.length === 0) continue;
+
+      let title = "X (Twitter) Photo";
+      const ogTitleMatch = html.match(/<meta[^>]+property="og:title"[^>]+content="([^"]+)"/i);
+      if (ogTitleMatch) {
+        title = decodeHtmlEntities(ogTitleMatch[1]);
+      }
+
+      const fullSizeImageUrls = imageUrls.map(getFullSizeInstagramImageUrl);
+
+      if (fullSizeImageUrls.length > 1) {
+        const entries: YtDlpInfo[] = fullSizeImageUrls.map((imgUrl, index) => ({
+          id: `${tweetId}-${index + 1}`,
+          title: `${title} (Slide ${index + 1}/${fullSizeImageUrls.length})`,
+          thumbnail: imgUrl,
+          duration: 0,
+          webpage_url: url,
+          url: imgUrl,
+          extractor_key: "Twitter",
+          extractor: "twitter",
+          formats: [
+            {
+              format_id: `image-${index + 1}`,
+              ext: "jpg",
+              height: 1080,
+              vcodec: "none",
+              acodec: "none",
+              protocol: "https",
+            },
+          ],
+        }));
+
+        return {
+          id: tweetId,
+          title,
+          thumbnail: fullSizeImageUrls[0],
+          duration: 0,
+          webpage_url: url,
+          url: fullSizeImageUrls[0],
+          extractor_key: "Twitter",
+          extractor: "twitter",
+          _type: "playlist",
+          entries,
+          formats: [
+            {
+              format_id: "image-1",
+              ext: "jpg",
+              height: 1080,
+              vcodec: "none",
+              acodec: "none",
+              protocol: "https",
+            },
+          ],
+        };
+      }
+
+      const imageUrl = fullSizeImageUrls[0];
+      return {
+        id: tweetId,
+        title,
+        thumbnail: imageUrl,
+        duration: 0,
+        webpage_url: url,
+        url: imageUrl,
+        extractor_key: "Twitter",
+        extractor: "twitter",
+        formats: [
+          {
+            format_id: "image",
+            ext: "jpg",
+            height: 1080,
+            vcodec: "none",
+            acodec: "none",
+            protocol: "https",
+          },
+        ],
+      };
+    } catch (err) {
+      console.warn(`[TwitterImageExtractor] Failed with UA ${ua}: ${err}`);
+    }
+  }
+
+  return null;
+}
+
 function decodeHtmlEntities(str: string): string {
   return str
     .replace(/&quot;/g, '"')
@@ -416,7 +554,8 @@ function getFullSizeInstagramImageUrl(url: string): string {
   return url
     .replace(/\/s\d+x\d+\//g, "/")
     .replace(/\/p\d+x\d+\//g, "/")
-    .replace(/\/c\d+,\d+,\d+,\d+\//g, "/");
+    .replace(/\/c\d+,\d+,\d+,\d+\//g, "/")
+    .replace(/[?&]stp=[^&]+/g, "");
 }
 
 
