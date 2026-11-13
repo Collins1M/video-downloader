@@ -581,21 +581,28 @@ export async function fetchTwitterImagePost(url: string): Promise<YtDlpInfo | nu
 
       const html = await res.text();
       const imageUrls: string[] = [];
+      const mediaBaseIds = new Set<string>();
 
-      const ogImageRegex = /<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/gi;
-      let matchOg;
-      while ((matchOg = ogImageRegex.exec(html)) !== null) {
-        const img = matchOg[1].replace(/&amp;/g, "&").replace(/\\u0026/g, "&");
-        if (img && !imageUrls.includes(img) && !img.includes("profile_images")) {
-          imageUrls.push(img);
+      const twimgMatches = [...html.matchAll(/https:\/\/pbs\.twimg\.com\/media\/([a-zA-Z0-9_-]+)/gi)];
+      for (const m of twimgMatches) {
+        const mediaId = m[1];
+        if (!mediaBaseIds.has(mediaId)) {
+          mediaBaseIds.add(mediaId);
+          imageUrls.push(`https://pbs.twimg.com/media/${mediaId}?format=jpg&name=orig`);
         }
       }
 
-      const twitterImageRegex = /<meta[^>]+name=["']twitter:image(?:[0-9])?["'][^>]+content=["']([^"']+)["']/gi;
-      while ((matchOg = twitterImageRegex.exec(html)) !== null) {
-        const img = matchOg[1].replace(/&amp;/g, "&").replace(/\\u0026/g, "&");
-        if (img && !imageUrls.includes(img) && !img.includes("profile_images")) {
-          imageUrls.push(img);
+      if (imageUrls.length === 0) {
+        const ogImageRegex = /<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/gi;
+        let matchOg;
+        while ((matchOg = ogImageRegex.exec(html)) !== null) {
+          const img = matchOg[1].replace(/&amp;/g, "&").replace(/\\u0026/g, "&");
+          if (img && !img.includes("profile_images")) {
+            const fullImg = getFullSizeTwitterImageUrl(img);
+            if (!imageUrls.includes(fullImg)) {
+              imageUrls.push(fullImg);
+            }
+          }
         }
       }
 
@@ -607,12 +614,10 @@ export async function fetchTwitterImagePost(url: string): Promise<YtDlpInfo | nu
         title = decodeHtmlEntities(ogTitleMatch[1]);
       }
 
-      const fullSizeImageUrls = imageUrls.map(getFullSizeInstagramImageUrl);
-
-      if (fullSizeImageUrls.length > 1) {
-        const entries: YtDlpInfo[] = fullSizeImageUrls.map((imgUrl, index) => ({
+      if (imageUrls.length > 1) {
+        const entries: YtDlpInfo[] = imageUrls.map((imgUrl, index) => ({
           id: `${tweetId}-${index + 1}`,
-          title: `${title} (Slide ${index + 1}/${fullSizeImageUrls.length})`,
+          title: `${title} (Photo ${index + 1}/${imageUrls.length})`,
           thumbnail: imgUrl,
           duration: 0,
           webpage_url: url,
@@ -634,10 +639,10 @@ export async function fetchTwitterImagePost(url: string): Promise<YtDlpInfo | nu
         return {
           id: tweetId,
           title,
-          thumbnail: fullSizeImageUrls[0],
+          thumbnail: imageUrls[0],
           duration: 0,
           webpage_url: url,
-          url: fullSizeImageUrls[0],
+          url: imageUrls[0],
           extractor_key: "Twitter",
           extractor: "twitter",
           _type: "playlist",
@@ -655,7 +660,7 @@ export async function fetchTwitterImagePost(url: string): Promise<YtDlpInfo | nu
         };
       }
 
-      const imageUrl = fullSizeImageUrls[0];
+      const imageUrl = imageUrls[0];
       return {
         id: tweetId,
         title,
@@ -696,6 +701,18 @@ function decodeHtmlEntities(str: string): string {
 }
 
 function getFullSizeInstagramImageUrl(url: string): string {
+  return url;
+}
+
+function getFullSizeTwitterImageUrl(url: string): string {
+  if (!url) return url;
+  if (url.includes("pbs.twimg.com/media/")) {
+    if (url.includes("name=")) {
+      return url.replace(/([?&])name=[^&]+/g, "$1name=orig");
+    }
+    const hasQuery = url.includes("?");
+    return `${url}${hasQuery ? "&" : "?"}name=orig`;
+  }
   return url;
 }
 
