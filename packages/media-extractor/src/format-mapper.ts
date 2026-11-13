@@ -244,9 +244,16 @@ export function buildFormatOptions(info: YtDlpInfo): FormatOption[] {
 export function resolveFormatTarget(info: YtDlpInfo, formatId: string): ResolvedTarget {
   const formats = info.formats ?? [];
 
-  if (formatId === "best-image" || formatId === "best-jpg" || formatId === "image") {
+  if (
+    formatId === "best-image" ||
+    formatId === "best-jpg" ||
+    formatId === "image" ||
+    formatId.startsWith("image-") ||
+    formatId.endsWith("-jpg")
+  ) {
     const imageFormat = formats.find(
       (f) =>
+        f.format_id === formatId ||
         f.format_id === "image" ||
         ((!f.vcodec || f.vcodec === "none") &&
           (!f.acodec || f.acodec === "none") &&

@@ -397,6 +397,221 @@ export async function fetchInstagramGraphQLMedia(shortcode: string): Promise<YtD
   }
 }
 
+export async function fetchInstagramEmbedMedia(shortcode: string): Promise<YtDlpInfo | null> {
+  const embedUrl = `https://www.instagram.com/p/${shortcode}/embed/captioned/`;
+  try {
+    const res = await fetch(embedUrl, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+      },
+    });
+
+    if (!res.ok) return null;
+
+    const html = await res.text();
+    let mediaObj: any = null;
+
+    const jsonMatch =
+      html.match(/window\.__additionalDataLoaded\s*\(\s*['"][^'"]+['"]\s*,\s*(\{.*?\})\s*\)\s*;/s) ||
+      html.match(/["']shortcode_media["']\s*:\s*(\{.*?\})\s*,\s*["']/s) ||
+      html.match(/["']items["']\s*:\s*(\[\s*\{.*?\}\s*\])/s);
+
+    if (jsonMatch) {
+      try {
+        const parsed = JSON.parse(jsonMatch[1]);
+        mediaObj =
+          parsed?.graphql?.shortcode_media ||
+          parsed?.shortcode_media ||
+          (Array.isArray(parsed) ? parsed[0] : parsed);
+      } catch {
+        // ignore parse error
+      }
+    }
+
+    const sidecarEdges = mediaObj?.edge_sidecar_to_children?.edges || mediaObj?.carousel_media;
+
+    if (sidecarEdges && Array.isArray(sidecarEdges) && sidecarEdges.length > 0) {
+      const title = mediaObj?.caption?.text || mediaObj?.title || "Instagram Post";
+      const entries: YtDlpInfo[] = sidecarEdges.map((edge: any, index: number) => {
+        const node = edge.node || edge;
+        const isVideo = Boolean(node.is_video);
+        const itemMediaUrl = isVideo
+          ? node.video_url || node.video_versions?.[0]?.url
+          : node.display_url || node.image_versions2?.candidates?.[0]?.url;
+        const itemThumb =
+          node.display_url || node.image_versions2?.candidates?.[0]?.url || itemMediaUrl;
+
+        return {
+          id: `${shortcode}-${index + 1}`,
+          title: `${title} (Slide ${index + 1}/${sidecarEdges.length})`,
+          thumbnail: itemThumb,
+          duration: node.video_duration || 0,
+          webpage_url: `https://www.instagram.com/p/${shortcode}/`,
+          url: itemMediaUrl,
+          extractor_key: "Instagram",
+          extractor: "instagram",
+          formats: isVideo
+            ? [
+                {
+                  format_id: `video-${index + 1}`,
+                  ext: "mp4",
+                  height: node.dimensions?.height || 1080,
+                  vcodec: "h264",
+                  acodec: "aac",
+                  protocol: "https",
+                },
+              ]
+            : [
+                {
+                  format_id: `image-${index + 1}`,
+                  ext: "jpg",
+                  height: node.dimensions?.height || 1080,
+                  vcodec: "none",
+                  acodec: "none",
+                  protocol: "https",
+                },
+              ],
+        };
+      });
+
+      return {
+        id: shortcode,
+        title,
+        thumbnail: entries[0].thumbnail,
+        duration: 0,
+        webpage_url: `https://www.instagram.com/p/${shortcode}/`,
+        url: entries[0].url,
+        extractor_key: "Instagram",
+        extractor: "instagram",
+        _type: "playlist",
+        entries,
+        formats: entries[0].formats,
+      };
+    }
+
+    if (mediaObj) {
+      const isVideo = Boolean(mediaObj.is_video);
+      const mediaUrl = isVideo
+        ? mediaObj.video_url || mediaObj.video_versions?.[0]?.url
+        : mediaObj.display_url || mediaObj.image_versions2?.candidates?.[0]?.url;
+      const thumbUrl =
+        mediaObj.display_url || mediaObj.image_versions2?.candidates?.[0]?.url || mediaUrl;
+      const title = mediaObj.caption?.text || mediaObj.title || "Instagram Post";
+
+      if (mediaUrl) {
+        return {
+          id: shortcode,
+          title,
+          thumbnail: thumbUrl,
+          duration: mediaObj.video_duration || 0,
+          webpage_url: `https://www.instagram.com/p/${shortcode}/`,
+          url: mediaUrl,
+          extractor_key: "Instagram",
+          extractor: "instagram",
+          formats: isVideo
+            ? [
+                {
+                  format_id: "best-mp4",
+                  ext: "mp4",
+                  height: mediaObj.dimensions?.height || 1080,
+                  vcodec: "h264",
+                  acodec: "aac",
+                  protocol: "https",
+                },
+              ]
+            : [
+                {
+                  format_id: "image",
+                  ext: "jpg",
+                  height: mediaObj.dimensions?.height || 1080,
+                  vcodec: "none",
+                  acodec: "none",
+                  protocol: "https",
+                },
+              ],
+        };
+      }
+    }
+
+    const embedImageUrls: string[] = [];
+    const imgMatches = [...html.matchAll(/<img[^>]+class="EmbeddedMediaImage"[^>]+src="([^"]+)"/gi)];
+    for (const m of imgMatches) {
+      const img = m[1].replace(/&amp;/g, "&").replace(/\\u0026/g, "&");
+      if (img && !embedImageUrls.includes(img)) {
+        embedImageUrls.push(img);
+      }
+    }
+
+    if (embedImageUrls.length === 0) {
+      const allImgMatches = [
+        ...html.matchAll(
+          /(https:\/\/[^"'\s\\]+?cdninstagram\.com\/v\/[^"'\s\\]+?\.(?:jpg|jpeg|png|webp)[^"'\s\\]*)/gi,
+        ),
+      ];
+      for (const m of allImgMatches) {
+        const clean = m[1].replace(/\\u0026/g, "&").replace(/\\/g, "").replace(/&amp;/g, "&");
+        if (
+          clean &&
+          !clean.includes("150x150") &&
+          !clean.includes("profile_pic") &&
+          !embedImageUrls.includes(clean)
+        ) {
+          embedImageUrls.push(clean);
+        }
+      }
+    }
+
+    if (embedImageUrls.length > 0) {
+      const isVideo = html.includes("EmbeddedMediaVideo") || html.includes("video_url");
+      const videoMatch = html.match(
+        /src="(https:\/\/[^"]+?cdninstagram\.com\/v\/[^"]+?\.mp4[^"]*)"/i,
+      );
+      const mediaUrl =
+        isVideo && videoMatch ? videoMatch[1].replace(/&amp;/g, "&") : embedImageUrls[0];
+
+      return {
+        id: shortcode,
+        title: "Instagram Post",
+        thumbnail: embedImageUrls[0],
+        duration: 0,
+        webpage_url: `https://www.instagram.com/p/${shortcode}/`,
+        url: mediaUrl,
+        extractor_key: "Instagram",
+        extractor: "instagram",
+        formats: isVideo
+          ? [
+              {
+                format_id: "best-mp4",
+                ext: "mp4",
+                height: 1080,
+                vcodec: "h264",
+                acodec: "aac",
+                protocol: "https",
+              },
+            ]
+          : [
+              {
+                format_id: "image",
+                ext: "jpg",
+                height: 1080,
+                vcodec: "none",
+                acodec: "none",
+                protocol: "https",
+              },
+            ],
+      };
+    }
+
+    return null;
+  } catch (err) {
+    console.warn(`[InstagramEmbed] Failed for ${shortcode}: ${err}`);
+    return null;
+  }
+}
+
 export async function fetchInstagramImagePost(url: string): Promise<YtDlpInfo | null> {
   const match = /instagram\.com\/(?:p|reel)\/([a-zA-Z0-9_-]+)/i.exec(url);
   if (!match) return null;
@@ -407,6 +622,12 @@ export async function fetchInstagramImagePost(url: string): Promise<YtDlpInfo | 
   if (gqlInfo) {
     console.log(`[InstagramGraphQL] Successfully resolved media for ${shortcode}`);
     return gqlInfo;
+  }
+
+  const embedInfo = await fetchInstagramEmbedMedia(shortcode);
+  if (embedInfo) {
+    console.log(`[InstagramEmbed] Successfully resolved media for ${shortcode}`);
+    return embedInfo;
   }
 
   const postUrl = `https://www.instagram.com/p/${shortcode}/`;
