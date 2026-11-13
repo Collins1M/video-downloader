@@ -33,12 +33,17 @@ import { JobExistsGuard } from "./job-exists.guard";
 const CONTENT_TYPES: Record<string, string> = {
   ".mp4": "video/mp4",
   ".mp3": "audio/mpeg",
+  ".gif": "image/gif",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".png": "image/png",
+  ".webp": "image/webp",
 };
 
 @ApiTags("video")
 @Controller("video")
 export class VideoController {
-  constructor(private readonly videoService: VideoService) {}
+  constructor(private readonly videoService: VideoService) { }
 
   @Post("analyze")
   @SkipThrottle({ download: true, polling: true })

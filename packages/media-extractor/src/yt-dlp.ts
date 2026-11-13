@@ -251,6 +251,17 @@ export async function fetchYtDlpInfo(
         console.warn(`[YtDlp] Embed fallback failed: ${fallbackErr}`);
       }
     }
+
+    // Twitter / X image post extraction fallback
+    const twitterMatch = /(?:twitter\.com|x\.com)\/[^/]+\/status\/(\d+)/i.exec(url);
+    if (twitterMatch) {
+      console.log(`[YtDlp] Attempting Twitter/X image post extraction for ${url}...`);
+      const twImgInfo = await fetchTwitterImagePost(url);
+      if (twImgInfo) {
+        console.log(`[YtDlp] Twitter image extraction successful for ${twImgInfo.id}`);
+        return twImgInfo;
+      }
+    }
     throw err;
   }
 }
@@ -311,6 +322,27 @@ export async function fetchInstagramImagePost(url: string): Promise<YtDlpInfo | 
         if (ogImgMatch) {
           imageUrls.push(ogImgMatch[1].replace(/&amp;/g, "&"));
         }
+      }
+
+      // Also parse Instagram JSON data (window.__additionalDataLoaded or script tags) for carousel children
+      try {
+        const jsonMatches = [...html.matchAll(/<script[^>]*type="application\/json"[^>]*>([\s\S]*?)<\/script>/gi)];
+        for (const jm of jsonMatches) {
+          const content = jm[1];
+          if (content.includes("edge_sidecar_to_children") || content.includes("display_url")) {
+            const displayUrlMatches = [...content.matchAll(/"display_url"\s*:\s*"([^"]+)"/g)];
+            for (const dum of displayUrlMatches) {
+              const url = dum[1].replace(/\\u0026/g, "&").replace(/\\/g, "");
+              const baseMatch = /(https:\/\/[^?]+?\.(?:jpg|jpeg|png|webp))/i.exec(url);
+              if (baseMatch && !uniqueBaseUrls.has(baseMatch[1])) {
+                uniqueBaseUrls.add(baseMatch[1]);
+                imageUrls.push(url);
+              }
+            }
+          }
+        }
+      } catch (jsonErr) {
+        // ignore JSON parse errors
       }
 
       if (imageUrls.length === 0) continue;
@@ -407,6 +439,105 @@ function decodeHtmlEntities(str: string): string {
     .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
     .replace(/&#([0-9]+);/g, (_, dec) => String.fromCodePoint(parseInt(dec, 10)))
     .trim();
+}
+
+export async function fetchTwitterImagePost(url: string): Promise<YtDlpInfo | null> {
+  const match = /(?:twitter\.com|x\.com)\/([^/]+)\/status\/(\d+)/i.exec(url);
+  if (!match) return null;
+
+  const username = match[1];
+  const tweetId = match[2];
+
+  // Try fxtwitter / vxtwitter API or HTML which provides public open graph image data
+  const fxUrl = `https://api.fxtwitter.com/${username}/status/${tweetId}`;
+  try {
+    const res = await fetch(fxUrl, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+      },
+    });
+
+    if (res.ok) {
+      const data = await res.json() as any;
+      const tweet = data?.tweet;
+      if (tweet) {
+        const media = tweet.media?.photos || [];
+        const imageUrls: string[] = media.map((p: any) => p.url).filter(Boolean);
+        const title = tweet.text || `${tweet.author?.name || username} on X`;
+
+        if (imageUrls.length > 1) {
+          const entries: YtDlpInfo[] = imageUrls.map((imgUrl, index) => ({
+            id: `${tweetId}-${index + 1}`,
+            title: `${title} (Image ${index + 1}/${imageUrls.length})`,
+            thumbnail: imgUrl,
+            duration: 0,
+            webpage_url: url,
+            url: imgUrl,
+            extractor_key: "Twitter",
+            extractor: "twitter",
+            formats: [
+              {
+                format_id: `image-${index + 1}`,
+                ext: "jpg",
+                height: 1080,
+                vcodec: "none",
+                acodec: "none",
+                protocol: "https",
+              },
+            ],
+          }));
+
+          return {
+            id: tweetId,
+            title,
+            thumbnail: imageUrls[0],
+            duration: 0,
+            webpage_url: url,
+            url: imageUrls[0],
+            extractor_key: "Twitter",
+            extractor: "twitter",
+            _type: "playlist",
+            entries,
+            formats: [
+              {
+                format_id: "image-1",
+                ext: "jpg",
+                height: 1080,
+                vcodec: "none",
+                acodec: "none",
+                protocol: "https",
+              },
+            ],
+          };
+        } else if (imageUrls.length === 1) {
+          return {
+            id: tweetId,
+            title,
+            thumbnail: imageUrls[0],
+            duration: 0,
+            webpage_url: url,
+            url: imageUrls[0],
+            extractor_key: "Twitter",
+            extractor: "twitter",
+            formats: [
+              {
+                format_id: "image",
+                ext: "jpg",
+                height: 1080,
+                vcodec: "none",
+                acodec: "none",
+                protocol: "https",
+              },
+            ],
+          };
+        }
+      }
+    }
+  } catch (err) {
+    console.warn(`[TwitterImageExtractor] FXTwitter lookup failed: ${err}`);
+  }
+
+  return null;
 }
 
 
@@ -609,8 +740,8 @@ export interface YtDlpFormat {
   acodec?: string;
   filesize?: number | null;
   filesize_approx?: number | null;
-  tbr?: number | null; 
-  abr?: number | null; 
+  tbr?: number | null;
+  abr?: number | null;
   protocol?: string;
 }
 

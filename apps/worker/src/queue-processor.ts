@@ -180,6 +180,20 @@ export async function processVideoJob(job: Job<VideoProcessingJobData>): Promise
       const imageUrl = target.imageUrl || info.url || info.thumbnail;
       if (imageUrl) {
         const res = await fetch(imageUrl);
+        const isInstagram = imageUrl.includes("cdninstagram.com") || dbJob.sourceUrl.includes("instagram.com");
+        const headers: Record<string, string> = {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+          "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+          "Accept-Language": "en-US,en;q=0.9",
+        };
+        if (isInstagram) {
+          headers["Referer"] = "https://www.instagram.com/";
+          headers["Sec-Fetch-Dest"] = "image";
+          headers["Sec-Fetch-Mode"] = "no-cors";
+          headers["Sec-Fetch-Site"] = "cross-site";
+        }
+
+        const res = await fetch(imageUrl, { headers });
         if (!res.ok) throw new ExtractionFailedError(`Failed to fetch image: HTTP ${res.status}`);
         const buffer = Buffer.from(await res.arrayBuffer());
         await fs.writeFile(outputPath, buffer);
@@ -202,11 +216,11 @@ export async function processVideoJob(job: Job<VideoProcessingJobData>): Promise
     const stat = await fs.stat(outputPath);
     const maxBytes = config.maxVideoSizeMb * 1024 * 1024;
     if (stat.size > maxBytes) {
-      await fs.unlink(outputPath).catch(() => {});
+      await fs.unlink(outputPath).catch(() => { });
       throw new FileTooLargeError();
     }
 
-    await Promise.all(intermediates.map((p) => fs.unlink(p).catch(() => {})));
+    await Promise.all(intermediates.map((p) => fs.unlink(p).catch(() => { })));
 
     await prisma.downloadJob.update({
       where: { id: downloadJobId },
@@ -258,7 +272,7 @@ export async function processVideoJob(job: Job<VideoProcessingJobData>): Promise
         })
         .catch((dbErr: unknown) => log.error({ err: dbErr }, "Failed to record failure in DB"));
 
-      await fs.rm(jobDir, { recursive: true, force: true }).catch(() => {});
+      await fs.rm(jobDir, { recursive: true, force: true }).catch(() => { });
 
       jobsFailedTotal.inc();
       jobProcessingDuration.observe((Date.now() - startedAtMs) / 1000);
@@ -282,7 +296,7 @@ export async function processVideoJob(job: Job<VideoProcessingJobData>): Promise
       .update({ where: { id: downloadJobId }, data: { status: "queued", progress: 0 } })
       .catch((dbErr: unknown) => log.error({ err: dbErr }, "Failed to reset job for retry"));
 
-    await fs.rm(jobDir, { recursive: true, force: true }).catch(() => {});
+    await fs.rm(jobDir, { recursive: true, force: true }).catch(() => { });
 
     throw err instanceof Error ? err : new Error(message);
   }
