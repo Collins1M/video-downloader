@@ -32,7 +32,7 @@ import { AppLoggerModule } from "./common/logging/logger.module";
           {
             name: "download",
             ttl: 60_000,
-            limit: Number(config.get("RATE_LIMIT_DOWNLOAD_PER_MINUTE") ?? 5),
+            limit: Number(config.get("RATE_LIMIT_DOWNLOAD_PER_MINUTE") ?? 20),
           },
           {
             name: "polling",
