@@ -558,12 +558,7 @@ function decodeHtmlEntities(str: string): string {
 }
 
 function getFullSizeInstagramImageUrl(url: string): string {
-  if (!url) return url;
-  return url
-    .replace(/\/s\d+x\d+\//g, "/")
-    .replace(/\/p\d+x\d+\//g, "/")
-    .replace(/\/c\d+,\d+,\d+,\d+\//g, "/")
-    .replace(/[?&]stp=[^&]+/g, "");
+  return url;
 }
 
 
