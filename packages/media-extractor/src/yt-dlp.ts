@@ -315,18 +315,20 @@ export async function fetchInstagramImagePost(url: string): Promise<YtDlpInfo | 
 
       if (imageUrls.length === 0) continue;
 
+      const fullSizeImageUrls = imageUrls.map(getFullSizeInstagramImageUrl);
+
       let title = "Instagram Photo";
       const ogTitleMatch = html.match(/<meta[^>]+property="og:title"[^>]+content="([^"]+)"/i);
       if (ogTitleMatch) {
         title = decodeHtmlEntities(ogTitleMatch[1]);
       }
 
-      console.log(`[InstagramImageExtractor] Extracted ${imageUrls.length} unique carousel image(s) for ${shortcode}`);
+      console.log(`[InstagramImageExtractor] Extracted ${fullSizeImageUrls.length} unique carousel image(s) for ${shortcode}`);
 
-      if (imageUrls.length > 1) {
-        const entries: YtDlpInfo[] = imageUrls.map((imgUrl, index) => ({
+      if (fullSizeImageUrls.length > 1) {
+        const entries: YtDlpInfo[] = fullSizeImageUrls.map((imgUrl, index) => ({
           id: `${shortcode}-${index + 1}`,
-          title: `${title} (Slide ${index + 1}/${imageUrls.length})`,
+          title: `${title} (Slide ${index + 1}/${fullSizeImageUrls.length})`,
           thumbnail: imgUrl,
           duration: 0,
           webpage_url: postUrl,
@@ -348,10 +350,10 @@ export async function fetchInstagramImagePost(url: string): Promise<YtDlpInfo | 
         return {
           id: shortcode,
           title,
-          thumbnail: imageUrls[0],
+          thumbnail: fullSizeImageUrls[0],
           duration: 0,
           webpage_url: postUrl,
-          url: imageUrls[0],
+          url: fullSizeImageUrls[0],
           extractor_key: "Instagram",
           extractor: "instagram",
           _type: "playlist",
@@ -369,7 +371,7 @@ export async function fetchInstagramImagePost(url: string): Promise<YtDlpInfo | 
         };
       }
 
-      const imageUrl = imageUrls[0];
+      const imageUrl = fullSizeImageUrls[0];
       return {
         id: shortcode,
         title,
@@ -407,6 +409,14 @@ function decodeHtmlEntities(str: string): string {
     .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
     .replace(/&#([0-9]+);/g, (_, dec) => String.fromCodePoint(parseInt(dec, 10)))
     .trim();
+}
+
+function getFullSizeInstagramImageUrl(url: string): string {
+  if (!url) return url;
+  return url
+    .replace(/\/s\d+x\d+\//g, "/")
+    .replace(/\/p\d+x\d+\//g, "/")
+    .replace(/\/c\d+,\d+,\d+,\d+\//g, "/");
 }
 
 
