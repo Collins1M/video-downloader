@@ -179,7 +179,6 @@ export async function processVideoJob(job: Job<VideoProcessingJobData>): Promise
       log.info({ format: dbJob.format }, "Starting image download (progress 10% -> 90%)");
       const imageUrl = target.imageUrl || info.url || info.thumbnail;
       if (imageUrl) {
-        const res = await fetch(imageUrl);
         const isInstagram = imageUrl.includes("cdninstagram.com") || dbJob.sourceUrl.includes("instagram.com");
         const headers: Record<string, string> = {
           "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",

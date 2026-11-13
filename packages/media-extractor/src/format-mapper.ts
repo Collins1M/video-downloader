@@ -245,83 +245,29 @@ export function buildFormatOptions(info: YtDlpInfo): FormatOption[] {
 export function resolveFormatTarget(info: YtDlpInfo, formatId: string): ResolvedTarget {
   const formats = info.formats ?? [];
 
-  if (formatId === "best-image" || formatId === "best-jpg" || formatId === "image") {
-    if (formatId === "best-image" || formatId === "best-jpg" || formatId === "image" || formatId.startsWith("image-")) {
-      const imageFormat = formats.find(
-        (f) =>
-          f.format_id === formatId ||
-          f.format_id === "image" ||
-          f.format_id.startsWith("image-") ||
-          ((!f.vcodec || f.vcodec === "none") &&
-            (!f.acodec || f.acodec === "none") &&
-            ["jpg", "jpeg", "png", "webp"].includes(f.ext?.toLowerCase() ?? "")),
-      );
-      return {
-        kind: "image",
-        container: "jpg",
-        imageFormatId: imageFormat?.format_id ?? "image",
-        imageUrl: info.url || info.thumbnail,
-      };
-    }
+  if (formatId === "best-image" || formatId === "best-jpg" || formatId === "image" || formatId.startsWith("image-")) {
+    const imageFormat = formats.find(
+      (f) =>
+        f.format_id === formatId ||
+        f.format_id === "image" ||
+        f.format_id.startsWith("image-") ||
+        ((!f.vcodec || f.vcodec === "none") &&
+          (!f.acodec || f.acodec === "none") &&
+          ["jpg", "jpeg", "png", "webp"].includes(f.ext?.toLowerCase() ?? "")),
+    );
+    return {
+      kind: "image",
+      container: "jpg",
+      imageFormatId: imageFormat?.format_id ?? "image",
+      imageUrl: info.url || info.thumbnail,
+    };
+  }
 
-    if (formatId === "best-mp4" || formatId === "best-gif") {
-      const video = bestOverallVideoFormat(formats);
-      if (!video) throw new FormatNotFoundError();
+  if (formatId === "best-mp4" || formatId === "best-gif") {
+    const video = bestOverallVideoFormat(formats);
+    if (!video) throw new FormatNotFoundError();
 
-      if (formatId === "best-gif" || video.vcodec === "gif" || video.ext === "gif") {
-        return {
-          kind: "gif",
-          container: "gif",
-          videoFormatId: video.format_id,
-        };
-      }
-
-      const needsAudio = !video.acodec || video.acodec === "none";
-      const audio = needsAudio ? bestAudioFormat(formats) : undefined;
-
-      return {
-        kind: "video",
-        container: "mp4",
-        videoFormatId: video.format_id,
-        audioFormatId: needsAudio ? (audio?.format_id ?? null) : null,
-      };
-    }
-
-    const videoMatch = /^(\d+)p-mp4$/.exec(formatId);
-    if (videoMatch) {
-      const height = Number(videoMatch[1]);
-      const video = bestVideoFormatForHeight(formats, height);
-      if (!video) throw new FormatNotFoundError();
-
-      const needsAudio = !video.acodec || video.acodec === "none";
-      const audio = needsAudio ? bestAudioFormat(formats) : undefined;
-
-      return {
-        kind: "video",
-        container: "mp4",
-        videoFormatId: video.format_id,
-        audioFormatId: needsAudio ? (audio?.format_id ?? null) : null,
-      };
-    }
-
-    const audioMatch = /^(\d+)kbps-mp3$/.exec(formatId);
-    if (audioMatch) {
-      const audio = bestAudioFormat(formats);
-      if (!audio) throw new FormatNotFoundError();
-
-      return {
-        kind: "audio",
-        container: "mp3",
-        audioFormatId: audio.format_id,
-        bitrateKbps: Number(audioMatch[1]),
-      };
-    }
-
-    const gifMatch = /^(\d+)p-gif$/.exec(formatId);
-    if (gifMatch) {
-      const height = Number(gifMatch[1]);
-      const video = bestVideoFormatForHeight(formats, height);
-      if (!video) throw new FormatNotFoundError();
+    if (formatId === "best-gif" || video.vcodec === "gif" || video.ext === "gif") {
       return {
         kind: "gif",
         container: "gif",
@@ -329,5 +275,58 @@ export function resolveFormatTarget(info: YtDlpInfo, formatId: string): Resolved
       };
     }
 
-    throw new FormatNotFoundError();
+    const needsAudio = !video.acodec || video.acodec === "none";
+    const audio = needsAudio ? bestAudioFormat(formats) : undefined;
+
+    return {
+      kind: "video",
+      container: "mp4",
+      videoFormatId: video.format_id,
+      audioFormatId: needsAudio ? (audio?.format_id ?? null) : null,
+    };
   }
+
+  const videoMatch = /^(\d+)p-mp4$/.exec(formatId);
+  if (videoMatch) {
+    const height = Number(videoMatch[1]);
+    const video = bestVideoFormatForHeight(formats, height);
+    if (!video) throw new FormatNotFoundError();
+
+    const needsAudio = !video.acodec || video.acodec === "none";
+    const audio = needsAudio ? bestAudioFormat(formats) : undefined;
+
+    return {
+      kind: "video",
+      container: "mp4",
+      videoFormatId: video.format_id,
+      audioFormatId: needsAudio ? (audio?.format_id ?? null) : null,
+    };
+  }
+
+  const audioMatch = /^(\d+)kbps-mp3$/.exec(formatId);
+  if (audioMatch) {
+    const audio = bestAudioFormat(formats);
+    if (!audio) throw new FormatNotFoundError();
+
+    return {
+      kind: "audio",
+      container: "mp3",
+      audioFormatId: audio.format_id,
+      bitrateKbps: Number(audioMatch[1]),
+    };
+  }
+
+  const gifMatch = /^(\d+)p-gif$/.exec(formatId);
+  if (gifMatch) {
+    const height = Number(gifMatch[1]);
+    const video = bestVideoFormatForHeight(formats, height);
+    if (!video) throw new FormatNotFoundError();
+    return {
+      kind: "gif",
+      container: "gif",
+      videoFormatId: video.format_id,
+    };
+  }
+
+  throw new FormatNotFoundError();
+}

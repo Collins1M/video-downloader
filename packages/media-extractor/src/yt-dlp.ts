@@ -224,45 +224,6 @@ export async function fetchYtDlpInfo(
     console.log(`[YtDlp] Successfully parsed JSON for ${info.id || info.title}. Type: ${info._type ?? 'single'}`);
     return info;
   } catch (err) {
-    const twitterMatch = /(?:twitter\.com|x\.com)\/[a-zA-Z0-9_]+\/status\/([0-9]+)/i.exec(url);
-    if (twitterMatch) {
-      console.log(`[YtDlp] Attempting Twitter/X image post extraction for ${url}...`);
-      const imgInfo = await fetchTwitterImagePost(url);
-      if (imgInfo) {
-        console.log(`[YtDlp] Twitter image extraction successful for ${imgInfo.id}`);
-        return imgInfo;
-      }
-    }
-
-    // If standard extraction failed or returned "there is no video in this post", try Instagram image extraction
-    const instagramMatch = /instagram\.com\/(?:reel|p)\/([a-zA-Z0-9_-]+)/i.exec(url);
-    if (instagramMatch) {
-      console.log(`[YtDlp] Attempting Instagram image post extraction for ${url}...`);
-      const imgInfo = await fetchInstagramImagePost(url);
-      if (imgInfo) {
-        console.log(`[YtDlp] Instagram image extraction successful for ${imgInfo.id}`);
-        return imgInfo;
-      }
-
-      const shortcode = instagramMatch[1];
-      const embedUrl = `https://www.instagram.com/p/${shortcode}/embed/captioned/`;
-      console.log(`[YtDlp] Attempting Instagram embed fallback for shortcode ${shortcode}: ${embedUrl}`);
-      try {
-        const fallbackArgs = ["--dump-single-json", "--no-warnings", "--no-check-certificates", "--", embedUrl];
-        const stdout = await runYtDlp(fallbackArgs, { timeoutMs, cookiesPath, ageConsent });
-        let info: YtDlpInfo;
-        try {
-          info = JSON.parse(stdout) as YtDlpInfo;
-        } catch (fallbackErr) {
-          throw new ExtractionFailedError("yt-dlp returned non-JSON output");
-        }
-        console.log(`[YtDlp] Embed fallback successful for ${info.id || info.title}`);
-        return info;
-      } catch (fallbackErr) {
-        console.warn(`[YtDlp] Embed fallback failed: ${fallbackErr}`);
-      }
-    }
-
     // Twitter / X image post extraction fallback
     const twitterMatch = /(?:twitter\.com|x\.com)\/[^/]+\/status\/(\d+)/i.exec(url);
     if (twitterMatch) {
@@ -623,6 +584,11 @@ export async function fetchInstagramEmbedMedia(shortcode: string): Promise<YtDlp
   }
 }
 
+function getFullSizeInstagramImageUrl(url: string): string {
+  if (!url) return "";
+  return url.replace(/\\u0026/g, "&").replace(/\\/g, "").replace(/&amp;/g, "&");
+}
+
 export async function fetchInstagramImagePost(url: string): Promise<YtDlpInfo | null> {
   const match = /instagram\.com\/(?:p|reel)\/([a-zA-Z0-9_-]+)/i.exec(url);
   if (!match) return null;
@@ -802,149 +768,9 @@ export async function fetchInstagramImagePost(url: string): Promise<YtDlpInfo | 
   return null;
 }
 
-export async function fetchTwitterImagePost(url: string): Promise<YtDlpInfo | null> {
-  const match = /(?:twitter\.com|x\.com)\/[a-zA-Z0-9_]+\/status\/([0-9]+)/i.exec(url);
-  if (!match) return null;
-
-  const tweetId = match[1];
-
-  const userAgents = [
-    "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)",
-    "Twitterbot/1.0",
-    "Googlebot/2.1 (+http://www.google.com/bot.html)",
-  ];
-
-  for (const ua of userAgents) {
-    try {
-      const res = await fetch(url, {
-        headers: {
-          "User-Agent": ua,
-          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-          "Accept-Language": "en-US,en;q=0.9",
-        },
-      });
-
-      if (!res.ok) continue;
-
-      const html = await res.text();
-      const imageUrls: string[] = [];
-      const mediaBaseIds = new Set<string>();
-
-      const twimgMatches = [...html.matchAll(/https:\/\/pbs\.twimg\.com\/media\/([a-zA-Z0-9_-]+)/gi)];
-      for (const m of twimgMatches) {
-        const mediaId = m[1];
-        if (!mediaBaseIds.has(mediaId)) {
-          mediaBaseIds.add(mediaId);
-          imageUrls.push(`https://pbs.twimg.com/media/${mediaId}?format=jpg&name=orig`);
-        }
-      }
-
-      if (imageUrls.length === 0) {
-        const ogImageRegex = /<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/gi;
-        let matchOg;
-        while ((matchOg = ogImageRegex.exec(html)) !== null) {
-          const img = matchOg[1].replace(/&amp;/g, "&").replace(/\\u0026/g, "&");
-          if (img && !img.includes("profile_images")) {
-            const fullImg = getFullSizeTwitterImageUrl(img);
-            if (!imageUrls.includes(fullImg)) {
-              imageUrls.push(fullImg);
-            }
-          }
-        }
-      }
-
-      if (imageUrls.length === 0) continue;
-
-      let title = "X (Twitter) Photo";
-      const ogTitleMatch = html.match(/<meta[^>]+property="og:title"[^>]+content="([^"]+)"/i);
-      if (ogTitleMatch) {
-        title = decodeHtmlEntities(ogTitleMatch[1]);
-      }
-
-      if (imageUrls.length > 1) {
-        const entries: YtDlpInfo[] = imageUrls.map((imgUrl, index) => ({
-          id: `${tweetId}-${index + 1}`,
-          title: `${title} (Photo ${index + 1}/${imageUrls.length})`,
-          thumbnail: imgUrl,
-          duration: 0,
-          webpage_url: url,
-          url: imgUrl,
-          extractor_key: "Twitter",
-          extractor: "twitter",
-          formats: [
-            {
-              format_id: `image-${index + 1}`,
-              ext: "jpg",
-              height: 1080,
-              vcodec: "none",
-              acodec: "none",
-              protocol: "https",
-            },
-          ],
-        }));
-
-        return {
-          id: tweetId,
-          title,
-          thumbnail: imageUrls[0],
-          duration: 0,
-          webpage_url: url,
-          url: imageUrls[0],
-          extractor_key: "Twitter",
-          extractor: "twitter",
-          _type: "playlist",
-          entries,
-          formats: [
-            {
-              format_id: "image-1",
-              ext: "jpg",
-              height: 1080,
-              vcodec: "none",
-              acodec: "none",
-              protocol: "https",
-            },
-          ],
-        };
-      }
-
-      const imageUrl = imageUrls[0];
-      return {
-        id: tweetId,
-        title,
-        thumbnail: imageUrl,
-        duration: 0,
-        webpage_url: url,
-        url: imageUrl,
-        extractor_key: "Twitter",
-        extractor: "twitter",
-        formats: [
-          {
-            format_id: "image",
-            ext: "jpg",
-            height: 1080,
-            vcodec: "none",
-            acodec: "none",
-            protocol: "https",
-          },
-        ],
-      };
-    } catch (err) {
-      console.warn(`[TwitterImageExtractor] Failed with UA ${ua}: ${err}`);
-    }
-  }
-
-  return null;
-}
-
-function decodeHtmlEntities(str: string): string {
-  return str
-    .replace(/&quot;/g, '"')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
-    .replace(/&#([0-9]+);/g, (_, dec) => String.fromCodePoint(parseInt(dec, 10)))
-    .trim();
+function getFullSizeTwitterImageUrl(url: string): string {
+  if (!url) return "";
+  return url.replace(/\\u0026/g, "&").replace(/\\/g, "").replace(/&amp;/g, "&");
 }
 
 export async function fetchTwitterImagePost(url: string): Promise<YtDlpInfo | null> {
@@ -1249,6 +1075,17 @@ export interface YtDlpFormat {
   tbr?: number | null;
   abr?: number | null;
   protocol?: string;
+}
+
+function decodeHtmlEntities(str: string): string {
+  return str
+    .replace(/&quot;/g, '"')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
+    .replace(/&#([0-9]+);/g, (_, dec) => String.fromCodePoint(parseInt(dec, 10)))
+    .trim();
 }
 
 export interface YtDlpInfo {
