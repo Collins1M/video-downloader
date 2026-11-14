@@ -296,6 +296,16 @@ export async function fetchYtDlpInfo(
 
     return info;
   } catch (err) {
+    // Instagram story / highlight fallback
+    if (url.includes("instagram.com") && (url.includes("story_media_id") || url.includes("/stories/") || url.includes("/s/"))) {
+      console.log(`[YtDlp] Attempting Instagram story/highlight extraction for ${url}...`);
+      const storyInfo = await fetchInstagramStoryMedia(url);
+      if (storyInfo) {
+        console.log(`[YtDlp] Instagram story/highlight extraction successful for ${storyInfo.id}`);
+        return storyInfo;
+      }
+    }
+
     // Instagram image post extraction fallback
     const instagramMatch = /instagram\.com\/(?:reel|p)\/([a-zA-Z0-9_-]+)/i.exec(url);
     if (instagramMatch) {
@@ -659,6 +669,41 @@ export async function fetchInstagramEmbedMedia(shortcode: string): Promise<YtDlp
 function getFullSizeInstagramImageUrl(url: string): string {
   if (!url) return "";
   return url.replace(/\\u0026/g, "&").replace(/\\/g, "").replace(/&amp;/g, "&");
+}
+
+export async function fetchInstagramStoryMedia(url: string): Promise<YtDlpInfo | null> {
+  const storyMatch = /story_media_id=([0-9]+)/i.exec(url) || /instagram\.com\/stories\/[^/]+\/([0-9]+)/i.exec(url);
+  if (!storyMatch) return null;
+
+  const mediaId = storyMatch[1];
+  const headers = {
+    "User-Agent":
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+    "Accept": "*/*",
+    "Accept-Language": "en-US,en;q=0.9",
+    "X-IG-App-ID": "936619743392459",
+    "X-ASBD-ID": "198387",
+    "X-IG-WWW-Claim": "0",
+    "Sec-Fetch-Mode": "cors",
+    "Sec-Fetch-Site": "same-origin",
+  };
+
+  try {
+    const apiUrl = `https://www.instagram.com/api/v1/media/${mediaId}/info/`;
+    const res = await fetch(apiUrl, { headers });
+    if (res.ok) {
+      const data = (await res.json()) as any;
+      const media = data?.items?.[0];
+      if (media) {
+        const parsed = parseInstagramMediaItem(media, mediaId);
+        if (parsed) return parsed;
+      }
+    }
+  } catch {
+    // ignore
+  }
+
+  return null;
 }
 
 export async function fetchInstagramImagePost(url: string): Promise<YtDlpInfo | null> {
