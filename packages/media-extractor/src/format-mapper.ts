@@ -36,9 +36,10 @@ export interface ResolvedImageTarget {
 export type ResolvedTarget = ResolvedVideoTarget | ResolvedAudioTarget | ResolvedGifTarget | ResolvedImageTarget;
 
 export function containerForFormatId(formatId: string): "mp4" | "mp3" | "gif" | "jpg" {
-  if (formatId.endsWith("-mp3")) return "mp3";
-  if (formatId.endsWith("-gif")) return "gif";
-  if (formatId.endsWith("-jpg") || formatId.endsWith("-image") || formatId === "best-image") return "jpg";
+  const cleanId = formatId.includes(":") ? formatId.split(":").slice(1).join(":") : formatId;
+  if (cleanId.endsWith("-mp3")) return "mp3";
+  if (cleanId.endsWith("-gif")) return "gif";
+  if (cleanId.endsWith("-jpg") || cleanId.endsWith("-image") || cleanId === "best-image") return "jpg";
   return "mp4";
 }
 
@@ -274,6 +275,16 @@ export function buildFormatOptions(info: YtDlpInfo): FormatOption[] {
 }
 
 export function resolveFormatTarget(info: YtDlpInfo, formatId: string): ResolvedTarget {
+  const slideMatch = /^slide-(\d+):(.+)$/.exec(formatId);
+  if (slideMatch) {
+    const slideIndex = Number(slideMatch[1]) - 1;
+    const subFormatId = slideMatch[2];
+    if (info.entries && Array.isArray(info.entries) && info.entries[slideIndex]) {
+      return resolveFormatTarget(info.entries[slideIndex], subFormatId);
+    }
+    return resolveFormatTarget(info, subFormatId);
+  }
+
   const formats = info.formats ?? [];
 
   if (

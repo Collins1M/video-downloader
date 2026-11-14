@@ -1,6 +1,4 @@
-// Central definition of the env vars this project expects.
-// apps/api and apps/worker should both read config through this shape
-// (e.g. via a validation library in Phase 3) rather than raw process.env.
+export { APP_DEFAULTS } from "./defaults";
 
 export interface AppConfig {
   nodeEnv: "development" | "production" | "test";

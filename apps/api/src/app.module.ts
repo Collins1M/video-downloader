@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 import { APP_GUARD, DiscoveryModule, Reflector } from "@nestjs/core";
 import { ThrottlerModule, ThrottlerGuard } from "@nestjs/throttler";
+import { APP_DEFAULTS } from "@video-downloader/config";
 import { AppController } from "./welcome.controller";
 import { PrismaModule } from "./prisma/prisma.module";
 import { VideoModule } from "./video/video.module";
@@ -27,17 +28,17 @@ import { AppLoggerModule } from "./common/logging/logger.module";
           {
             name: "general",
             ttl: 60_000,
-            limit: Number(config.get("RATE_LIMIT_PER_MINUTE") ?? 10),
+            limit: Number(config.get("RATE_LIMIT_PER_MINUTE") ?? APP_DEFAULTS.rateLimitPerMinute),
           },
           {
             name: "download",
             ttl: 60_000,
-            limit: Number(config.get("RATE_LIMIT_DOWNLOAD_PER_MINUTE") ?? 20),
+            limit: Number(config.get("RATE_LIMIT_DOWNLOAD_PER_MINUTE") ?? APP_DEFAULTS.rateLimitDownloadPerMinute),
           },
           {
             name: "polling",
             ttl: 60_000,
-            limit: Number(config.get("RATE_LIMIT_POLLING_PER_MINUTE") ?? 120),
+            limit: Number(config.get("RATE_LIMIT_POLLING_PER_MINUTE") ?? APP_DEFAULTS.rateLimitPollingPerMinute),
           },
         ],
       }),

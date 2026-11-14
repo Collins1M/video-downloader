@@ -1,3 +1,5 @@
+import { APP_DEFAULTS } from "@video-downloader/config";
+
 export interface WorkerConfig {
   redisUrl: string;
   databaseUrl: string;
@@ -26,9 +28,9 @@ export function loadWorkerConfig(): WorkerConfig {
     redisUrl,
     databaseUrl,
     concurrency: Number(process.env.WORKER_CONCURRENCY ?? 2),
-    maxProcessingTimeSeconds: Number(process.env.MAX_PROCESSING_TIME_SECONDS ?? 900),
-    maxVideoSizeMb: Number(process.env.MAX_VIDEO_SIZE_MB ?? 2048),
-    tempFileTtlMinutes: Number(process.env.TEMP_FILE_TTL_MINUTES ?? 30),
+    maxProcessingTimeSeconds: Number(process.env.MAX_PROCESSING_TIME_SECONDS ?? APP_DEFAULTS.maxProcessingTimeSeconds),
+    maxVideoSizeMb: Number(process.env.MAX_VIDEO_SIZE_MB ?? APP_DEFAULTS.maxVideoSizeMb),
+    tempFileTtlMinutes: Number(process.env.TEMP_FILE_TTL_MINUTES ?? APP_DEFAULTS.tempFileTtlMinutes),
     tempDir: process.env.TEMP_DIR ?? "/var/tmp/video-downloader",
     metricsPort: Number(process.env.METRICS_PORT ?? 9091),
     analyzeTimeoutMs: Number(process.env.ANALYZE_TIMEOUT_MS ?? 60_000),

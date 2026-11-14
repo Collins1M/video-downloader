@@ -52,8 +52,6 @@ export async function analyzeUrl(
     const analyzedItems: AnalyzedVideoItem[] = info.entries.map((entry, index) => {
       const entrySource = safeHostname(entry.webpage_url) ?? mainSource;
       const entryPlatform = detectPlatform(entry.webpage_url ?? url, entry.extractor_key ?? info.extractor_key);
-      const isInstagram = entryPlatform === "instagram" || mainPlatform === "instagram";
-      const hasSpecificShortcode = Boolean(entry.id && !entry.id.includes("playlist") && !entry.id.includes("-"));
       const isImage = !entry.duration || entry.duration === 0;
 
       const entryVideoInfo: VideoInfo = {
@@ -65,17 +63,23 @@ export async function analyzeUrl(
       };
 
       const slideUrl =
-        isInstagram && hasSpecificShortcode
-          ? `https://www.instagram.com/p/${entry.id}/`
-          : isImage && entry.url && entry.url.startsWith("http")
+        entry.webpage_url && entry.webpage_url !== url && entry.webpage_url !== info.webpage_url
+          ? entry.webpage_url
+          : entry.url && entry.url.startsWith("http")
             ? entry.url
-            : entry.webpage_url || entry.url || url;
+            : entry.webpage_url || url;
+
+      const rawFormats = buildFormatOptions(entry);
+      const formats = rawFormats.map((f) => ({
+        ...f,
+        id: `slide-${index + 1}:${f.id}`,
+      }));
 
       return {
         id: entry.id || `${info.id || "playlist"}-${index + 1}`,
         url: slideUrl,
         video: entryVideoInfo,
-        formats: buildFormatOptions(entry),
+        formats: formats.length > 0 ? formats : rawFormats,
       };
     });
 
