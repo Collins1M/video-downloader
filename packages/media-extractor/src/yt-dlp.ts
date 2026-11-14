@@ -224,6 +224,17 @@ export async function fetchYtDlpInfo(
     console.log(`[YtDlp] Successfully parsed JSON for ${info.id || info.title}. Type: ${info._type ?? 'single'}`);
     return info;
   } catch (err) {
+    // Instagram image post extraction fallback
+    const instagramMatch = /instagram\.com\/(?:reel|p)\/([a-zA-Z0-9_-]+)/i.exec(url);
+    if (instagramMatch) {
+      console.log(`[YtDlp] Attempting Instagram image post extraction for ${url}...`);
+      const imgInfo = await fetchInstagramImagePost(url);
+      if (imgInfo) {
+        console.log(`[YtDlp] Instagram image extraction successful for ${imgInfo.id}`);
+        return imgInfo;
+      }
+    }
+
     // Twitter / X image post extraction fallback
     const twitterMatch = /(?:twitter\.com|x\.com)\/[^/]+\/status\/(\d+)/i.exec(url);
     if (twitterMatch) {
