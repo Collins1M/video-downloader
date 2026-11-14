@@ -158,11 +158,9 @@ export class VideoController {
     res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
 
     const scheduleCleanup = () => {
-      setTimeout(() => {
-        fs.unlink(path).catch(() => {
-          /* already gone, or TTL sweep beat us to it — fine either way */
-        });
-      }, 60_000);
+      fs.unlink(path).catch(() => {
+        /* already gone, or TTL sweep beat us to it — fine either way */
+      });
     };
 
     const stream = createReadStream(path);
