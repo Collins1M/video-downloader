@@ -1,6 +1,6 @@
 import { ExecutionContext, UnauthorizedException } from "@nestjs/common";
 import { AdminBasicAuthGuard } from "./basic-auth.guard";
-import { Mock } from "vitest";
+import { describe, it, expect, beforeEach, vi, type Mock } from "vitest";
 
 function basicAuthHeader(username: string, password: string): string {
   return `Basic ${Buffer.from(`${username}:${password}`).toString("base64")}`;
