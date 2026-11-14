@@ -36,7 +36,7 @@ export interface ResolvedImageTarget {
 export type ResolvedTarget = ResolvedVideoTarget | ResolvedAudioTarget | ResolvedGifTarget | ResolvedImageTarget;
 
 export function containerForFormatId(formatId: string): "mp4" | "mp3" | "gif" | "jpg" {
-  const cleanId = formatId.includes(":") ? formatId.split(":").slice(1).join(":") : formatId;
+  const cleanId = /^slide\d+-(.+)$/.exec(formatId)?.[1] ?? formatId;
   if (cleanId.endsWith("-mp3")) return "mp3";
   if (cleanId.endsWith("-gif")) return "gif";
   if (cleanId.endsWith("-jpg") || cleanId.endsWith("-image") || cleanId === "best-image") return "jpg";
@@ -275,7 +275,7 @@ export function buildFormatOptions(info: YtDlpInfo): FormatOption[] {
 }
 
 export function resolveFormatTarget(info: YtDlpInfo, formatId: string): ResolvedTarget {
-  const slideMatch = /^slide-(\d+):(.+)$/.exec(formatId);
+  const slideMatch = /^slide(\d+)-(.+)$/.exec(formatId);
   if (slideMatch) {
     const slideIndex = Number(slideMatch[1]) - 1;
     const subFormatId = slideMatch[2];

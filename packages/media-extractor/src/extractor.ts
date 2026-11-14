@@ -72,7 +72,7 @@ export async function analyzeUrl(
       const rawFormats = buildFormatOptions(entry);
       const formats = rawFormats.map((f) => ({
         ...f,
-        id: `slide-${index + 1}:${f.id}`,
+        id: `slide${index + 1}-${f.id}`,
       }));
 
       return {
