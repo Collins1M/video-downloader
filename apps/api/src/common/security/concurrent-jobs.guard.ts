@@ -14,7 +14,7 @@ export class ConcurrentJobsGuard implements CanActivate {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<Request>();
     const ip = request.ip ?? "unknown";
-    const maxConcurrent = Number(this.config.get("MAX_CONCURRENT_JOBS_PER_IP") ?? 2);
+    const maxConcurrent = Number(this.config.get("MAX_CONCURRENT_JOBS_PER_IP") ?? 5);
 
     const activeCount = await this.prisma.downloadJob.count({
       where: {

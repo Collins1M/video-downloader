@@ -157,15 +157,17 @@ export class VideoController {
     res.setHeader("Content-Length", stat.size);
     res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
 
-    const cleanup = () => {
-      fs.unlink(path).catch(() => {
-        /* already gone, or TTL sweep beat us to it — fine either way */
-      });
+    const scheduleCleanup = () => {
+      setTimeout(() => {
+        fs.unlink(path).catch(() => {
+          /* already gone, or TTL sweep beat us to it — fine either way */
+        });
+      }, 60_000);
     };
 
     const stream = createReadStream(path);
-    stream.on("error", cleanup);
-    res.on("finish", cleanup);
+    stream.on("error", scheduleCleanup);
+    res.on("finish", scheduleCleanup);
 
     stream.pipe(res);
   }

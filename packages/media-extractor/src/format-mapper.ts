@@ -230,13 +230,44 @@ export function buildFormatOptions(info: YtDlpInfo): FormatOption[] {
         ["jpg", "jpeg", "png", "webp"].includes(f.ext?.toLowerCase() ?? "")),
   );
 
-  if (imageFormat || (rawFormats.length === 0 && info.url)) {
+  const isImagePost =
+    imageFormat ||
+    (rawFormats.length === 0 && info.url) ||
+    (!info.duration && (info.thumbnail || (info.thumbnails && info.thumbnails.length > 0)));
+
+  if (isImagePost) {
     options.push({
       id: "best-image",
       type: "image",
       container: "jpg",
-      resolution: "HD Image",
+      resolution: "1080p (Original)",
     });
+
+    if (info.thumbnails && Array.isArray(info.thumbnails) && info.thumbnails.length > 1) {
+      const hasMedium = info.thumbnails.some(
+        (t) => (t.width && t.width <= 800 && t.width >= 400) || (t.height && t.height <= 800 && t.height >= 400),
+      );
+      if (hasMedium) {
+        options.push({
+          id: "medium-image",
+          type: "image",
+          container: "jpg",
+          resolution: "640p (Medium)",
+        });
+      }
+
+      const hasSmall = info.thumbnails.some(
+        (t) => (t.width && t.width <= 480 && t.width >= 150) || (t.height && t.height <= 480 && t.height >= 150),
+      );
+      if (hasSmall) {
+        options.push({
+          id: "small-image",
+          type: "image",
+          container: "jpg",
+          resolution: "320p (Small)",
+        });
+      }
+    }
   }
 
   return options;
@@ -245,7 +276,35 @@ export function buildFormatOptions(info: YtDlpInfo): FormatOption[] {
 export function resolveFormatTarget(info: YtDlpInfo, formatId: string): ResolvedTarget {
   const formats = info.formats ?? [];
 
-  if (formatId === "best-image" || formatId === "best-jpg" || formatId === "image" || formatId.startsWith("image-")) {
+  if (
+    formatId === "best-image" ||
+    formatId === "best-jpg" ||
+    formatId === "image" ||
+    formatId.startsWith("image-") ||
+    formatId === "medium-image" ||
+    formatId === "small-image"
+  ) {
+    let imageUrl = info.url || info.thumbnail;
+
+    if (info.thumbnails && Array.isArray(info.thumbnails) && info.thumbnails.length > 0) {
+      if (formatId === "medium-image") {
+        const mediumThumb = [...info.thumbnails]
+          .filter((t) => (t.width && t.width <= 800 && t.width >= 400) || (t.height && t.height <= 800 && t.height >= 400))
+          .sort((a, b) => ((b.width || 0) * (b.height || 0)) - ((a.width || 0) * (a.height || 0)))[0];
+        if (mediumThumb?.url) imageUrl = mediumThumb.url;
+      } else if (formatId === "small-image") {
+        const smallThumb = [...info.thumbnails]
+          .filter((t) => (t.width && t.width <= 480) || (t.height && t.height <= 480))
+          .sort((a, b) => ((b.width || 0) * (b.height || 0)) - ((a.width || 0) * (a.height || 0)))[0];
+        if (smallThumb?.url) imageUrl = smallThumb.url;
+      } else {
+        const bestThumb = [...info.thumbnails].sort(
+          (a, b) => ((b.width || 0) * (b.height || 0)) - ((a.width || 0) * (a.height || 0)),
+        )[0];
+        if (bestThumb?.url) imageUrl = bestThumb.url;
+      }
+    }
+
     const imageFormat = formats.find(
       (f) =>
         f.format_id === formatId ||
@@ -255,11 +314,12 @@ export function resolveFormatTarget(info: YtDlpInfo, formatId: string): Resolved
           (!f.acodec || f.acodec === "none") &&
           ["jpg", "jpeg", "png", "webp"].includes(f.ext?.toLowerCase() ?? "")),
     );
+
     return {
       kind: "image",
       container: "jpg",
-      imageFormatId: imageFormat?.format_id ?? "image",
-      imageUrl: info.url || info.thumbnail,
+      imageFormatId: imageFormat?.format_id ?? formatId,
+      imageUrl,
     };
   }
 
